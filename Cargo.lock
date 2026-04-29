@@ -164,6 +164,8 @@ dependencies = [
  "auditor-report",
  "serde",
  "serde_json",
+ "tauri",
+ "tokio",
  "uuid",
 ]
 

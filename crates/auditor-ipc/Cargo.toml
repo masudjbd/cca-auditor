@@ -11,3 +11,5 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
 uuid = { workspace = true }
+tauri = { version = "1.7", features = ["shell-open"] }
+tokio = { workspace = true }
