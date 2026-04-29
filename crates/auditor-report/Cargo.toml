@@ -1,0 +1,14 @@
+[package]
+name = "auditor-report"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+auditor-core = { path = "../auditor-core" }
+auditor-db = { path = "../auditor-db" }
+tera = "1.19"
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }

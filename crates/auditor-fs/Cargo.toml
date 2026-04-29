@@ -1,0 +1,12 @@
+[package]
+name = "auditor-fs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+auditor-core = { path = "../auditor-core" }
+notify = "6.1"
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

@@ -1,0 +1,12 @@
+[package]
+name = "auditor-net"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+auditor-core = { path = "../auditor-core" }
+netstat2 = "0.9"
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

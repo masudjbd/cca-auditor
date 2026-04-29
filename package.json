@@ -1,0 +1,9 @@
+{
+  "name": "cca-audit-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CCAudit - audit trail for AI coding tools",
+  "workspaces": [
+    "apps/desktop/ui"
+  ]
+}

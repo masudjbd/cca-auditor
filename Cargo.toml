@@ -1,0 +1,25 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/auditor-core",
+  "crates/auditor-db",
+  "crates/auditor-detect",
+  "crates/auditor-monitors",
+  "crates/auditor-fs",
+  "crates/auditor-net",
+  "crates/auditor-report",
+  "crates/auditor-guardrail",
+  "crates/auditor-ipc",
+  "apps/desktop/src-tauri",
+]
+
+[workspace.dependencies]
+tokio = { version = "1.40", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
+uuid = { version = "1.10", features = ["v4", "serde"] }

@@ -1,0 +1,17 @@
+[package]
+name = "auditor-monitors"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+auditor-core = { path = "../auditor-core" }
+auditor-db = { path = "../auditor-db" }
+auditor-detect = { path = "../auditor-detect" }
+auditor-fs = { path = "../auditor-fs" }
+auditor-net = { path = "../auditor-net" }
+tokio = { workspace = true }
+tokio-util = "0.7"
+sysinfo = "0.30"
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

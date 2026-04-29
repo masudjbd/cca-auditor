@@ -1,0 +1,100 @@
+# --- credentials and secrets (NEVER commit) ---
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+*.gpg
+*.asc
+local_secrets/
+secrets/
+.secrets/
+.aws/
+.npmrc
+.netrc
+.gh-token
+.github-token
+
+# Tauri updater private signing key (public key is fine in tauri.conf.json)
+*.tauri-updater.key
+tauri-updater-private.key
+~/.tauri/
+
+# Apple signing
+*.p8
+AuthKey_*.p8
+ExportOptions.plist
+
+# --- Rust ---
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# --- Node / pnpm / Vite ---
+node_modules/
+dist/
+.dist/
+.vite/
+.turbo/
+*.tsbuildinfo
+.pnp.*
+pnpm-debug.log*
+npm-debug.log*
+yarn-error.log*
+
+# --- Tauri build artefacts ---
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/target/
+apps/desktop/ui/dist/
+
+# --- Local app data and DBs ---
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-journal
+local-data/
+.cca-audit/
+~/.cca-audit/
+
+# --- Build / installer outputs ---
+*.dmg
+*.pkg
+*.msi
+*.exe
+*.AppImage
+*.deb
+*.rpm
+*.app
+out/
+release/
+
+# --- Editor / OS noise ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+*.swp
+*.swo
+.fleet/
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Coverage and test artefacts ---
+coverage/
+.nyc_output/
+*.lcov
+tarpaulin-report.html

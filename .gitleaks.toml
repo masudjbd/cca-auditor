@@ -1,0 +1,137 @@
+# gitleaks config for CCAudit
+# Extends the default ruleset with AI-coding-tool-specific patterns.
+# Run locally:    gitleaks detect --source . --no-banner --redact
+# Run on staged: gitleaks detect --staged --no-banner --redact
+
+title = "CCAudit gitleaks rules"
+
+# Inherit gitleaks' default rules (~150 built-in detectors).
+[extend]
+useDefault = true
+
+# --- AI provider keys ---
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key"
+regex = '''sk-ant-(?:api03|admin01)-[A-Za-z0-9_\-]{80,}'''
+keywords = ["sk-ant-"]
+tags = ["key", "anthropic"]
+
+[[rules]]
+id = "openai-api-key"
+description = "OpenAI API key"
+regex = '''sk-[A-Za-z0-9]{20,}T3BlbkFJ[A-Za-z0-9]{20,}'''
+keywords = ["sk-", "T3BlbkFJ"]
+tags = ["key", "openai"]
+
+[[rules]]
+id = "openai-project-key"
+description = "OpenAI project key (sk-proj-…)"
+regex = '''sk-proj-[A-Za-z0-9_\-]{40,}'''
+keywords = ["sk-proj-"]
+tags = ["key", "openai"]
+
+[[rules]]
+id = "google-genai-key"
+description = "Google Generative AI / Gemini API key"
+regex = '''AIza[0-9A-Za-z\-_]{35}'''
+keywords = ["AIza"]
+tags = ["key", "google"]
+
+[[rules]]
+id = "groq-api-key"
+description = "Groq API key"
+regex = '''gsk_[A-Za-z0-9]{40,}'''
+keywords = ["gsk_"]
+tags = ["key", "groq"]
+
+[[rules]]
+id = "mistral-api-key"
+description = "Mistral API key"
+regex = '''[A-Za-z0-9]{32}'''
+keywords = ["MISTRAL_API_KEY"]
+tags = ["key", "mistral"]
+entropy = 4.5
+
+[[rules]]
+id = "huggingface-token"
+description = "Hugging Face access token"
+regex = '''hf_[A-Za-z0-9]{30,}'''
+keywords = ["hf_"]
+tags = ["key", "huggingface"]
+
+[[rules]]
+id = "cohere-api-key"
+description = "Cohere API key"
+regex = '''co_[A-Za-z0-9]{40,}'''
+keywords = ["co_"]
+tags = ["key", "cohere"]
+
+# --- AI tool session / auth tokens ---
+[[rules]]
+id = "cursor-session-token"
+description = "Cursor session token"
+regex = '''cursor_session_[A-Za-z0-9_\-]{32,}'''
+keywords = ["cursor_session_"]
+tags = ["session", "cursor"]
+
+[[rules]]
+id = "claude-oauth-token"
+description = "Claude Desktop / Claude Code OAuth token"
+regex = '''(?i)(?:claude[_-]?(?:oauth|session|access)[_-]?token)["'\s:=]{1,5}[A-Za-z0-9_\-\.]{32,}'''
+keywords = ["claude_oauth", "claude-oauth", "claude_session", "claude_access"]
+tags = ["session", "claude"]
+
+# --- VCS / cloud / infra ---
+[[rules]]
+id = "github-fine-grained-pat"
+description = "GitHub fine-grained PAT"
+regex = '''github_pat_[A-Za-z0-9_]{82}'''
+keywords = ["github_pat_"]
+tags = ["pat", "github"]
+
+[[rules]]
+id = "github-classic-pat"
+description = "GitHub classic PAT"
+regex = '''ghp_[A-Za-z0-9]{36}'''
+keywords = ["ghp_"]
+tags = ["pat", "github"]
+
+[[rules]]
+id = "github-actions-token"
+description = "GitHub Actions runtime token"
+regex = '''ghs_[A-Za-z0-9]{36}'''
+keywords = ["ghs_"]
+tags = ["pat", "github"]
+
+# --- Tauri updater private key (must NEVER ship) ---
+[[rules]]
+id = "tauri-updater-private-key"
+description = "Tauri updater PRIVATE key (only the public key may be committed)"
+regex = '''untrusted comment: minisign encrypted secret key|RWRTY0Iy[A-Za-z0-9+/=]{40,}'''
+keywords = ["minisign encrypted secret key", "RWRTY0Iy"]
+tags = ["key", "tauri", "updater"]
+
+# --- Apple signing (must NEVER ship) ---
+[[rules]]
+id = "apple-app-specific-password"
+description = "Apple App-Specific Password"
+regex = '''[a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}'''
+keywords = ["APPLE_PASSWORD", "APP_SPECIFIC_PASSWORD"]
+tags = ["password", "apple"]
+
+[allowlist]
+description = "Allowlist for fixtures, snapshots, and test data"
+paths = [
+    '''(.*?)\.gitleaks\.toml$''',
+    '''(.*?)/fixtures/(.*)$''',
+    '''(.*?)/__snapshots__/(.*)$''',
+    '''(.*?)/testdata/(.*)$''',
+    '''docs/threat-model\.md$''',
+    '''docs/security-model\.md$''',
+]
+regexes = [
+    '''sk-ant-api03-XXXXXXXXX(?:[A-Z]+)?''',
+    '''ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx''',
+    '''AIzaSyA_EXAMPLE_PLACEHOLDER_DOC_KEY_ABCDEF''',
+]

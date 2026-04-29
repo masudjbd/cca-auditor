@@ -1,0 +1,13 @@
+[package]
+name = "auditor-ipc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+auditor-core = { path = "../auditor-core" }
+auditor-db = { path = "../auditor-db" }
+auditor-report = { path = "../auditor-report" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+uuid = { workspace = true }
