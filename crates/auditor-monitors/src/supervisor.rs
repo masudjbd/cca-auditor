@@ -36,16 +36,16 @@ pub async fn run_supervisor(
     });
 
     // Spawn FS monitor
-    let db_clone = db.clone();
-    let shutdown_clone = shutdown.clone();
+    let _db_clone = db.clone();
+    let _shutdown_clone = shutdown.clone();
     tasks.spawn(async move {
         // TODO: implement FS monitor
         Ok(())
     });
 
     // Spawn network monitor
-    let db_clone = db.clone();
-    let shutdown_clone = shutdown.clone();
+    let _db_clone = db.clone();
+    let _shutdown_clone = shutdown.clone();
     tasks.spawn(async move {
         // TODO: implement network monitor
         Ok(())

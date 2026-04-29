@@ -2,9 +2,7 @@ use auditor_core::session::AuditSession;
 use auditor_core::events::AuditEvent;
 use auditor_core::samples::ResourceSample;
 use auditor_db::DbPool;
-use auditor_report::ReportFormat;
 use std::sync::Arc;
-use uuid::Uuid;
 
 #[tauri::command]
 pub fn get_live_sessions() -> Result<Vec<AuditSession>, String> {
