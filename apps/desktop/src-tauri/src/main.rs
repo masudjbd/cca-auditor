@@ -17,6 +17,7 @@ fn main() {
     tracing::info!("CCAudit starting...");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             greet,
         ])
