@@ -1,0 +1,29 @@
+# CCAudit Report
+
+**Generated:** {{ generated_at }}
+
+## Summary
+
+- **Total Sessions:** {{ session_count }}
+- **Total Events:** {{ event_count }}
+- **Duration:** {{ duration_hours }}h {{ duration_mins }}m
+
+## Sessions
+
+| Tool | PID | Started | Ended | Confidence |
+|------|-----|---------|-------|------------|
+{% for session in sessions -%}
+| {{ session.tool_id }} | {{ session.pid }} | {{ session.started_at }} | {{ session.ended_at | default(value="Active") }} | {{ session.confidence }} |
+{% endfor %}
+
+## Events
+
+| Time | Tool | Type | Details | Confidence |
+|------|------|------|---------|------------|
+{% for event in events -%}
+| {{ event.timestamp }} | {{ event.tool_id }} | {{ event.kind }} | {{ event.details }} | {{ event.confidence }} |
+{% endfor %}
+
+---
+
+CCAudit — Audit trail for AI coding tools. [View on GitHub](https://github.com/masudjbd/cca-auditor)
