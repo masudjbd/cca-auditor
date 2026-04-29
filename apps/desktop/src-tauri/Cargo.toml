@@ -12,7 +12,7 @@ auditor-db = { path = "../../../crates/auditor-db" }
 auditor-detect = { path = "../../../crates/auditor-detect" }
 auditor-monitors = { path = "../../../crates/auditor-monitors" }
 auditor-ipc = { path = "../../../crates/auditor-ipc" }
-tauri = { version = "1.7", features = ["shell-open", "system-tray"] }
+tauri = { version = "1.7", features = ["shell-open"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }

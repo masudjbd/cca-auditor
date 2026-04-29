@@ -1,0 +1,29 @@
+{
+  "build": {
+    "devPath": "http://localhost:5173",
+    "distDir": "../ui/dist"
+  },
+  "package": {
+    "productName": "CCAudit",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "shell": {
+        "open": true
+      }
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "height": 900,
+        "resizable": true,
+        "title": "CCAudit",
+        "width": 1200
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'"
+    }
+  }
+}
