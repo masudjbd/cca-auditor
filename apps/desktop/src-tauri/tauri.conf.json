@@ -14,10 +14,7 @@
     ],
     "security": {
       "csp": "default-src 'self'"
-    },
-    "permissions": [
-      "shell:allow-open"
-    ]
+    }
   },
   "bundle": {
     "active": true,
