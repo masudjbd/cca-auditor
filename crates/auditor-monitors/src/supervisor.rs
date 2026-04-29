@@ -5,12 +5,17 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use anyhow::Result;
 
+use crate::state::{create_state, ActiveSessions};
+
 pub async fn run_supervisor(
     db: Arc<DbPool>,
     fingerprints: Vec<ToolFingerprint>,
 ) -> Result<()> {
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
+
+    // Shared state across all monitors
+    let active_sessions: ActiveSessions = create_state();
 
     // Handle Ctrl+C to trigger graceful shutdown
     tokio::spawn(async move {
@@ -20,35 +25,26 @@ pub async fn run_supervisor(
 
     let mut tasks = JoinSet::new();
 
-    // Spawn resource monitor (1 Hz sampling)
+    // Spawn resource monitor (1 Hz sampling, only AI tool processes)
     let db_clone = db.clone();
     let shutdown_clone = shutdown.clone();
+    let sessions_clone = active_sessions.clone();
     tasks.spawn(async move {
-        super::resource_monitor::start_monitor(db_clone, shutdown_clone).await
+        super::resource_monitor::start_monitor(db_clone, sessions_clone, shutdown_clone).await
     });
 
     // Spawn process monitor (2 s polling)
     let db_clone = db.clone();
     let shutdown_clone = shutdown.clone();
     let fingerprints_clone = fingerprints.clone();
+    let sessions_clone = active_sessions.clone();
     tasks.spawn(async move {
-        super::process_monitor::start_monitor(db_clone, fingerprints_clone, shutdown_clone).await
-    });
-
-    // Spawn FS monitor
-    let _db_clone = db.clone();
-    let _shutdown_clone = shutdown.clone();
-    tasks.spawn(async move {
-        // TODO: implement FS monitor
-        Ok(())
-    });
-
-    // Spawn network monitor
-    let _db_clone = db.clone();
-    let _shutdown_clone = shutdown.clone();
-    tasks.spawn(async move {
-        // TODO: implement network monitor
-        Ok(())
+        super::process_monitor::start_monitor(
+            db_clone,
+            fingerprints_clone,
+            sessions_clone,
+            shutdown_clone,
+        ).await
     });
 
     // Wait for all tasks to complete
