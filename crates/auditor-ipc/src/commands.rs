@@ -37,29 +37,24 @@ pub fn get_samples(
         .map_err(|e| e.to_string())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Alert {
-    pub id: i64,
-    pub kind: String,
-    pub severity: String,
-    pub detail: String,
-    pub timestamp: i64,
-    pub dismissed: bool,
-}
+pub use auditor_db::queries::alerts::Alert;
 
 #[tauri::command]
 pub fn get_alerts(
-    _state: tauri::State<'_, Arc<DbPool>>,
-    _dismissed: bool,
+    state: tauri::State<'_, Arc<DbPool>>,
+    dismissed: bool,
 ) -> Result<Vec<Alert>, String> {
-    // TODO: implement alert query when alerts query module is added
-    Ok(vec![])
+    auditor_db::queries::alerts::get_alerts(&state, dismissed)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn dismiss_alert(_id: i64) -> Result<(), String> {
-    // TODO: implement when alerts query module is added
-    Ok(())
+pub fn dismiss_alert(
+    state: tauri::State<'_, Arc<DbPool>>,
+    id: i64,
+) -> Result<(), String> {
+    auditor_db::queries::alerts::dismiss_alert(&state, id)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
