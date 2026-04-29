@@ -1,0 +1,164 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+  build-macos:
+    name: Build macOS
+    needs: create-release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - run: pnpm install
+      - run: cargo tauri build --target universal-apple-darwin
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Upload macOS DMG
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/CCAudit_*.dmg
+          asset_name: CCAudit_${{ github.ref_name }}_macos_universal.dmg
+          asset_content_type: application/x-apple-diskimage
+
+  build-windows:
+    name: Build Windows
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - run: pnpm install
+      - run: cargo tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Upload Windows MSI
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./apps/desktop/src-tauri/target/release/bundle/msi/CCAudit_*.msi
+          asset_name: CCAudit_${{ github.ref_name }}_windows_x64.msi
+          asset_content_type: application/x-msi
+
+  build-linux:
+    name: Build Linux
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - run: sudo apt-get update && sudo apt-get install -y libssl-dev libgtk-3-dev libwebkit2gtk-4.0-dev
+      - run: pnpm install
+      - run: cargo tauri build
+      - name: Upload Linux AppImage
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./apps/desktop/src-tauri/target/release/bundle/appimage/cca-audit_*.AppImage
+          asset_name: CCAudit_${{ github.ref_name }}_linux_x64.AppImage
+          asset_content_type: application/x-appimage
+      - name: Upload Linux DEB
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./apps/desktop/src-tauri/target/release/bundle/deb/cca-audit_*.deb
+          asset_name: CCAudit_${{ github.ref_name }}_linux_x64.deb
+          asset_content_type: application/x-deb
+
+  publish-checksums:
+    name: Publish Checksums
+    needs: [create-release, build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate latest.json for Tauri Updater
+        run: |
+          cat > latest.json <<EOF
+          {
+            "version": "${{ github.ref_name }}",
+            "notes": "See https://github.com/masudjbd/cca-auditor/releases/tag/${{ github.ref_name }}",
+            "pub_date": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "",
+                "url": "https://github.com/masudjbd/cca-auditor/releases/download/${{ github.ref_name }}/CCAudit_${{ github.ref_name }}_macos_universal.dmg"
+              },
+              "darwin-x86_64": {
+                "signature": "",
+                "url": "https://github.com/masudjbd/cca-auditor/releases/download/${{ github.ref_name }}/CCAudit_${{ github.ref_name }}_macos_universal.dmg"
+              },
+              "win32": {
+                "signature": "",
+                "url": "https://github.com/masudjbd/cca-auditor/releases/download/${{ github.ref_name }}/CCAudit_${{ github.ref_name }}_windows_x64.msi"
+              },
+              "linux": {
+                "signature": "",
+                "url": "https://github.com/masudjbd/cca-auditor/releases/download/${{ github.ref_name }}/CCAudit_${{ github.ref_name }}_linux_x64.AppImage"
+              }
+            }
+          }
+          EOF
+      - name: Upload latest.json
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./latest.json
+          asset_name: latest.json
+          asset_content_type: application/json

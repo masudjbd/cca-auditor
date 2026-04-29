@@ -1,0 +1,36 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useAuditStream } from './hooks/useAuditStream'
+import Layout from './components/Layout'
+import Dashboard from './pages/Dashboard'
+import Live from './pages/Live'
+import Sessions from './pages/Sessions'
+import Alerts from './pages/Alerts'
+import Reports from './pages/Reports'
+import Publish from './pages/Publish'
+import Settings from './pages/Settings'
+
+function AppContent() {
+  useAuditStream()
+
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/live" element={<Live />} />
+        <Route path="/sessions" element={<Sessions />} />
+        <Route path="/alerts" element={<Alerts />} />
+        <Route path="/reports" element={<Reports />} />
+        <Route path="/publish" element={<Publish />} />
+        <Route path="/settings" element={<Settings />} />
+      </Route>
+    </Routes>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
+  )
+}

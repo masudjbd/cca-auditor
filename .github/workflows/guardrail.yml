@@ -1,0 +1,98 @@
+name: Secret Guardrail (PRs)
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  gitleaks-pr:
+    name: Scan PR for Secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run gitleaks on PR diff
+        id: gitleaks
+        run: |
+          # Download gitleaks
+          curl -sL https://github.com/zricethezav/gitleaks/releases/download/v15.3.0/gitleaks-linux-x64 -o gitleaks
+          chmod +x gitleaks
+
+          # Scan only changed files (diff against base)
+          git diff origin/${{ github.base_ref }}...HEAD --name-only > /tmp/changed_files.txt
+
+          # Run gitleaks on PR
+          ./gitleaks detect \
+            --source . \
+            --verbose \
+            --report-format json \
+            --report-path /tmp/gitleaks-report.json \
+            --exit-code 0 || true  # Don't fail; we'll comment instead
+        continue-on-error: true
+
+      - name: Comment PR with findings
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+
+            let report = { Leaks: [] };
+            if (fs.existsSync('/tmp/gitleaks-report.json')) {
+              try {
+                report = JSON.parse(fs.readFileSync('/tmp/gitleaks-report.json', 'utf8'));
+              } catch (e) {
+                console.log('Failed to parse report:', e);
+              }
+            }
+
+            const leaks = report.Leaks || [];
+
+            if (leaks.length === 0) {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '✅ **Secret Guardrail**: No secrets detected in this PR'
+              });
+              return;
+            }
+
+            // Build findings table
+            let comment = '⚠️ **Secret Guardrail**: Potential secrets detected\n\n';
+            comment += '| File | Line | Rule | Severity |\n';
+            comment += '|------|------|------|----------|\n';
+
+            leaks.forEach(leak => {
+              const redacted = leak.Secret
+                ? leak.Secret.substring(0, 4) + '••••••' + leak.Secret.substring(Math.max(4, leak.Secret.length - 4))
+                : '***';
+              comment += `| \`${leak.File}\` | ${leak.LineNumber} | ${leak.RuleID} | ${leak.Severity || 'medium'} |\n`;
+            });
+
+            comment += '\n**Action Required**: ';
+            const highSeverity = leaks.some(l => l.Severity === 'high');
+            if (highSeverity) {
+              comment += 'High-severity secrets detected. **This PR cannot be merged.** Remove the secrets and push again.';
+            } else {
+              comment += 'Review findings above. If false positives, add to `.gitleaksignore` and document.';
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+            // Fail if high severity
+            if (highSeverity) {
+              core.setFailed('High-severity secrets detected');
+            }
