@@ -5,8 +5,11 @@ edition = "2021"
 
 [dependencies]
 auditor-core = { path = "../auditor-core" }
-notify = "6.1"
+auditor-db = { path = "../auditor-db" }
+notify = { version = "6.1", features = ["macos_fsevent"] }
 tokio = { workspace = true }
+tokio-util = "0.7"
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+dirs = "5.0"

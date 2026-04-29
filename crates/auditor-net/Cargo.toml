@@ -5,8 +5,10 @@ edition = "2021"
 
 [dependencies]
 auditor-core = { path = "../auditor-core" }
+auditor-db = { path = "../auditor-db" }
 netstat2 = "0.9"
 tokio = { workspace = true }
+tokio-util = "0.7"
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
