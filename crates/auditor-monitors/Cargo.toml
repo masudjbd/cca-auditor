@@ -9,7 +9,7 @@ auditor-db = { path = "../auditor-db" }
 auditor-detect = { path = "../auditor-detect" }
 auditor-fs = { path = "../auditor-fs" }
 auditor-net = { path = "../auditor-net" }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["signal"] }
 tokio-util = "0.7"
 sysinfo = "0.30"
 anyhow = { workspace = true }

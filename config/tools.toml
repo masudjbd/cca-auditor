@@ -1,0 +1,110 @@
+# AI tool fingerprints for CCAudit process detection
+# Each [[tool]] stanza defines how to identify a running tool process
+
+[[tool]]
+id = "cursor"
+kind = "editor"
+display_name = "Cursor"
+exe_name = ["Cursor", "cursor"]
+exe_path_contains = ["/Cursor.app/Contents/MacOS/", "/opt/cursor", "C:\\Program Files\\Cursor"]
+cmd_contains = []
+include_descendants = true
+
+[[tool]]
+id = "claude-code"
+kind = "cli-agent"
+display_name = "Claude Code"
+exe_name = ["claude", "claude-code"]
+exe_path_contains = [".cargo/bin/claude"]
+cmd_contains = ["@anthropic-ai/claude-code"]
+include_descendants = true
+
+[[tool]]
+id = "claude-desktop"
+kind = "cli-agent"
+display_name = "Claude Desktop"
+exe_name = ["Claude"]
+exe_path_contains = ["/Applications/Claude.app/", "C:\\Program Files\\Claude"]
+cmd_contains = []
+include_descendants = false
+
+[[tool]]
+id = "windsurf"
+kind = "editor"
+display_name = "Windsurf"
+exe_name = ["Windsurf", "windsurf"]
+exe_path_contains = ["/Windsurf.app/Contents/MacOS/", "C:\\Program Files\\Windsurf"]
+cmd_contains = []
+include_descendants = true
+
+[[tool]]
+id = "ollama"
+kind = "server"
+display_name = "Ollama"
+exe_name = ["ollama"]
+exe_path_contains = ["/Applications/Ollama.app/", "C:\\Program Files\\Ollama", "/opt/ollama"]
+cmd_contains = ["serve"]
+include_descendants = true
+
+[[tool]]
+id = "lmstudio"
+kind = "server"
+display_name = "LM Studio"
+exe_name = ["LM Studio", "lm-studio"]
+exe_path_contains = ["/Applications/LM Studio.app/", "C:\\Program Files\\LM Studio"]
+cmd_contains = []
+include_descendants = true
+
+[[tool]]
+id = "aider"
+kind = "cli-agent"
+display_name = "Aider"
+exe_name = ["aider"]
+exe_path_contains = [".cargo/bin/aider"]
+cmd_contains = ["aider"]
+include_descendants = true
+
+[[tool]]
+id = "cline"
+kind = "browser-extension"
+display_name = "Cline (VS Code)"
+exe_name = ["code", "Code"]
+exe_path_contains = ["/Applications/Visual Studio Code.app/"]
+cmd_contains = ["cline", "saoudrizwan.claude-dev"]
+include_descendants = true
+
+[[tool]]
+id = "continue"
+kind = "browser-extension"
+display_name = "Continue.dev (VS Code)"
+exe_name = ["code", "Code"]
+exe_path_contains = ["/Applications/Visual Studio Code.app/"]
+cmd_contains = ["continue"]
+include_descendants = true
+
+[[tool]]
+id = "copilot-chat"
+kind = "browser-extension"
+display_name = "GitHub Copilot Chat"
+exe_name = ["code", "Code"]
+exe_path_contains = ["/Applications/Visual Studio Code.app/"]
+cmd_contains = ["github.copilot-chat"]
+include_descendants = true
+
+[[tool]]
+id = "tabnine"
+kind = "browser-extension"
+display_name = "Tabnine"
+exe_name = ["code", "Code"]
+exe_path_contains = ["/Applications/Visual Studio Code.app/"]
+cmd_contains = ["tabnine"]
+include_descendants = true
+
+[[tool]]
+id = "supermaven"
+kind = "browser-extension"
+display_name = "Supermaven"
+exe_name = ["code", "Code"]
+exe_path_contains = ["/Applications/Visual Studio Code.app/"]
+cmd_contains = ["supermaven"]
+include_descendants = true

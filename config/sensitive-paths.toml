@@ -1,0 +1,118 @@
+# Sensitive path patterns that trigger alerts in CCAudit
+# Patterns support wildcards: * for any characters in a path segment
+# Severity: high, medium, low
+
+[[path]]
+pattern = "~/.ssh/**"
+severity = "high"
+reason = "SSH private keys and authorized_keys"
+
+[[path]]
+pattern = "~/.aws/**"
+severity = "high"
+reason = "AWS credentials and config"
+
+[[path]]
+pattern = "~/.azure/**"
+severity = "high"
+reason = "Azure CLI credentials"
+
+[[path]]
+pattern = "~/.config/gcloud/**"
+severity = "high"
+reason = "Google Cloud SDK credentials"
+
+[[path]]
+pattern = "**/.env"
+severity = "high"
+reason = "Environment variables with secrets"
+
+[[path]]
+pattern = "**/.env.*"
+severity = "medium"
+reason = "Local environment files"
+
+[[path]]
+pattern = "**/Keychain/**"
+severity = "high"
+reason = "macOS Keychain database"
+
+[[path]]
+pattern = "~/.kube/**"
+severity = "high"
+reason = "Kubernetes config and credentials"
+
+[[path]]
+pattern = "~/.docker/config.json"
+severity = "high"
+reason = "Docker credentials"
+
+[[path]]
+pattern = "~/.npmrc"
+severity = "high"
+reason = "npm registry token"
+
+[[path]]
+pattern = "~/.netrc"
+severity = "high"
+reason = "FTP/HTTP authentication"
+
+[[path]]
+pattern = "~/.ssh/config"
+severity = "medium"
+reason = "SSH host configuration"
+
+[[path]]
+pattern = "**/*.pem"
+severity = "high"
+reason = "PEM-encoded private keys"
+
+[[path]]
+pattern = "**/*.key"
+severity = "high"
+reason = "Cryptographic keys"
+
+[[path]]
+pattern = "**/*.p12"
+severity = "high"
+reason = "PKCS12 certificate bundles"
+
+[[path]]
+pattern = "**/*credentials*"
+severity = "high"
+reason = "Credential files"
+
+[[path]]
+pattern = "**/*secret*"
+severity = "medium"
+reason = "Files named 'secret' or containing 'secret'"
+
+[[path]]
+pattern = "**/config/database.yml"
+severity = "high"
+reason = "Database credentials (Rails)"
+
+[[path]]
+pattern = "**/config/secrets.yml"
+severity = "high"
+reason = "Rails secrets"
+
+[[path]]
+pattern = "~/.python_history"
+severity = "medium"
+reason = "Python REPL history (may contain secrets)"
+
+[[path]]
+pattern = "~/.bash_history"
+severity = "medium"
+reason = "Bash history (may contain secrets)"
+
+[[path]]
+pattern = "~/.zsh_history"
+severity = "medium"
+reason = "Zsh history (may contain secrets)"
+
+[[path]]
+pattern = "~/.history"
+severity = "medium"
+reason = "Shell history (may contain secrets)"
