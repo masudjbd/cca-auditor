@@ -12,7 +12,7 @@ auditor-db = { path = "../../../crates/auditor-db" }
 auditor-detect = { path = "../../../crates/auditor-detect" }
 auditor-monitors = { path = "../../../crates/auditor-monitors" }
 auditor-ipc = { path = "../../../crates/auditor-ipc" }
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-dialog = "2"
 dirs = "5"
 serde = { workspace = true }
