@@ -91,3 +91,27 @@ export async function pushWithGuardrail(
     throw error
   }
 }
+
+export interface AppSettings {
+  watch_paths: string[]
+  enabled_tools: string[]
+  encryption: boolean
+}
+
+export async function saveSettingsToBackend(settings: AppSettings): Promise<void> {
+  try {
+    await invoke('save_settings', { settings })
+  } catch (error) {
+    console.warn('Failed to save settings to backend, using localStorage only:', error)
+    throw error
+  }
+}
+
+export async function loadSettingsFromBackend(): Promise<AppSettings | null> {
+  try {
+    return await invoke<AppSettings>('load_settings')
+  } catch (error) {
+    console.warn('Failed to load settings from backend:', error)
+    return null
+  }
+}

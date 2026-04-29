@@ -167,10 +167,13 @@ dependencies = [
  "auditor-core",
  "auditor-db",
  "auditor-report",
+ "dirs 5.0.1",
  "serde",
  "serde_json",
  "tauri",
+ "time",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -434,6 +437,7 @@ dependencies = [
  "auditor-detect",
  "auditor-ipc",
  "auditor-monitors",
+ "dirs 5.0.1",
  "serde",
  "serde_json",
  "tauri",

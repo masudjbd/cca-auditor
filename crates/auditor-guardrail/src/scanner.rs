@@ -1,7 +1,5 @@
-use serde_json::json;
 use anyhow::Result;
 use std::path::Path;
-use std::process::Command;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Finding {
@@ -23,7 +21,7 @@ pub fn redact_secret(secret: &str) -> String {
 }
 
 pub async fn scan_staged(repo_path: impl AsRef<Path>) -> Result<Vec<Finding>> {
-    let repo_path = repo_path.as_ref();
+    let _repo_path = repo_path.as_ref();
 
     // TODO: download gitleaks binary if not present
     // TODO: call gitleaks detect --staged --no-banner --redact

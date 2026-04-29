@@ -8,6 +8,7 @@ import {
   saveSettings,
   PersistedSettings,
 } from '../lib/toolPaths'
+import { saveSettingsToBackend, loadSettingsFromBackend } from '../lib/tauri'
 
 export default function Settings() {
   const [watchPaths, setWatchPaths] = useState<string[]>([])
@@ -18,12 +19,22 @@ export default function Settings() {
 
   const tools = Object.keys(TOOL_PATH_SUGGESTIONS)
 
-  // Load persisted settings on mount
+  // Load persisted settings on mount (try backend first, fall back to localStorage)
   useEffect(() => {
-    const settings = loadSettings()
-    setWatchPaths(settings.watchPaths)
-    setEnabledTools(new Set(settings.enabledTools))
-    setEncryption(settings.encryption)
+    const initSettings = async () => {
+      const backendSettings = await loadSettingsFromBackend()
+      if (backendSettings) {
+        setWatchPaths(backendSettings.watch_paths)
+        setEnabledTools(new Set(backendSettings.enabled_tools))
+        setEncryption(backendSettings.encryption)
+      } else {
+        const localSettings = loadSettings()
+        setWatchPaths(localSettings.watchPaths)
+        setEnabledTools(new Set(localSettings.enabledTools))
+        setEncryption(localSettings.encryption)
+      }
+    }
+    initSettings()
   }, [])
 
   // Compute intelligent path suggestions based on enabled tools
@@ -84,13 +95,26 @@ export default function Settings() {
     setEnabledTools(newSet)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const settings: PersistedSettings = {
       watchPaths,
       enabledTools: Array.from(enabledTools),
       encryption,
     }
+    // Save to localStorage (always works)
     saveSettings(settings)
+
+    // Also save to backend (best effort)
+    try {
+      await saveSettingsToBackend({
+        watch_paths: watchPaths,
+        enabled_tools: Array.from(enabledTools),
+        encryption,
+      })
+    } catch {
+      // localStorage already saved, OK to proceed
+    }
+
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
