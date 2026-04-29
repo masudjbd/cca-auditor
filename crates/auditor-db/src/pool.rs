@@ -7,5 +7,13 @@ pub type DbPool = Pool<SqliteConnectionManager>;
 
 pub fn create_pool(db_path: impl AsRef<Path>) -> auditor_core::error::Result<DbPool> {
     let manager = SqliteConnectionManager::file(db_path);
-    Pool::new(manager).map_err(|e| CcaError::Database(e.to_string()))
+    let pool = Pool::new(manager).map_err(|e| CcaError::Database(e.to_string()))?;
+
+    // Run init migration
+    let conn = pool.get().map_err(|e| CcaError::Database(e.to_string()))?;
+    let init_sql = crate::migrations::get_init_sql();
+    conn.execute_batch(init_sql)
+        .map_err(|e| CcaError::Database(e.to_string()))?;
+
+    Ok(pool)
 }
