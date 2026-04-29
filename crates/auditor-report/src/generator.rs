@@ -1,7 +1,5 @@
-use auditor_core::session::AuditSession;
-use auditor_core::events::AuditEvent;
 use auditor_db::DbPool;
-use serde_json::{json, Value};
+use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 use anyhow::Result;

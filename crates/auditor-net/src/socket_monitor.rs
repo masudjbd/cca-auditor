@@ -1,19 +1,15 @@
-use auditor_core::events::{AuditEvent, EventKind};
-use auditor_core::tool::Confidence;
 use auditor_db::DbPool;
 use std::time::Duration;
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use anyhow::Result;
 
 pub async fn start_monitor(
-    db: Arc<DbPool>,
+    _db: Arc<DbPool>,
     shutdown: CancellationToken,
 ) -> Result<()> {
     let mut ticker = interval(Duration::from_secs(5));
-    let mut active_connections: HashMap<String, (u32, String, u16)> = HashMap::new();
 
     loop {
         tokio::select! {

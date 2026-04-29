@@ -1,7 +1,4 @@
-use auditor_core::events::{AuditEvent, EventKind};
-use auditor_core::tool::Confidence;
 use auditor_db::DbPool;
-use notify::{Watcher, RecursiveMode};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;

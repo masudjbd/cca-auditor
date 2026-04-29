@@ -6,7 +6,6 @@ use std::time::Duration;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use anyhow::Result;
 
 pub type SampleBuffer = VecDeque<ResourceSample>;
