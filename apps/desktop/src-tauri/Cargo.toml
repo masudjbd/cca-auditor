@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [build-dependencies]
-tauri-build = "1.5"
+tauri-build = "2"
 
 [dependencies]
 auditor-core = { path = "../../../crates/auditor-core" }
@@ -12,7 +12,7 @@ auditor-db = { path = "../../../crates/auditor-db" }
 auditor-detect = { path = "../../../crates/auditor-detect" }
 auditor-monitors = { path = "../../../crates/auditor-monitors" }
 auditor-ipc = { path = "../../../crates/auditor-ipc" }
-tauri = { version = "1.7", features = ["shell-open"] }
+tauri = { version = "2", features = ["shell-open"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }

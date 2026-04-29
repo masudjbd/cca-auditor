@@ -1,8 +1,9 @@
 {
+  "build": {
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../ui/dist"
+  },
   "app": {
-    "id": "com.masudjbd.cca-audit",
-    "productName": "CCAudit",
-    "version": "0.1.0",
     "windows": [
       {
         "title": "CCAudit",
@@ -14,19 +15,16 @@
     "security": {
       "csp": "default-src 'self'"
     },
-    "allowlist": {
-      "shell": {
-        "open": true
-      }
-    }
-  },
-  "build": {
-    "devPath": "http://localhost:5173",
-    "distDir": "../ui/dist",
-    "devUrl": "http://localhost:5173"
+    "permissions": [
+      "shell:allow-open"
+    ]
   },
   "bundle": {
     "active": true,
     "targets": ["dmg", "msi", "appimage", "deb"]
-  }
+  },
+  "productName": "CCAudit",
+  "version": "0.1.0",
+  "identifier": "com.masudjbd.cca-audit",
+  "plugins": {}
 }
