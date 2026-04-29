@@ -1,5 +1,7 @@
 use auditor_core::config::ToolFingerprint;
 use auditor_db::DbPool;
+use auditor_fs::SensitivePathConfig;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -10,6 +12,8 @@ use crate::state::{create_state, ActiveSessions};
 pub async fn run_supervisor(
     db: Arc<DbPool>,
     fingerprints: Vec<ToolFingerprint>,
+    watch_paths: Vec<PathBuf>,
+    sensitive_patterns: Vec<SensitivePathConfig>,
 ) -> Result<()> {
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
@@ -17,7 +21,6 @@ pub async fn run_supervisor(
     // Shared state across all monitors
     let active_sessions: ActiveSessions = create_state();
 
-    // Handle Ctrl+C to trigger graceful shutdown
     tokio::spawn(async move {
         tokio::signal::ctrl_c().await.ok();
         shutdown_clone.cancel();
@@ -25,7 +28,7 @@ pub async fn run_supervisor(
 
     let mut tasks = JoinSet::new();
 
-    // Spawn resource monitor (1 Hz sampling, only AI tool processes)
+    // Resource monitor (1 Hz, only AI tool processes)
     let db_clone = db.clone();
     let shutdown_clone = shutdown.clone();
     let sessions_clone = active_sessions.clone();
@@ -33,7 +36,7 @@ pub async fn run_supervisor(
         super::resource_monitor::start_monitor(db_clone, sessions_clone, shutdown_clone).await
     });
 
-    // Spawn process monitor (2 s polling)
+    // Process monitor (2s polling)
     let db_clone = db.clone();
     let shutdown_clone = shutdown.clone();
     let fingerprints_clone = fingerprints.clone();
@@ -47,7 +50,20 @@ pub async fn run_supervisor(
         ).await
     });
 
-    // Wait for all tasks to complete
+    // FS monitor with sensitive path detection
+    let db_clone = db.clone();
+    let shutdown_clone = shutdown.clone();
+    let watch_paths_clone = watch_paths.clone();
+    let sensitive_clone = sensitive_patterns.clone();
+    tasks.spawn(async move {
+        auditor_fs::start_watcher(
+            db_clone,
+            watch_paths_clone,
+            sensitive_clone,
+            shutdown_clone,
+        ).await
+    });
+
     while let Some(result) = tasks.join_next().await {
         match result {
             Ok(Ok(())) => {}

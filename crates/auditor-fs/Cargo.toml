@@ -13,3 +13,5 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 dirs = "5.0"
+serde = { workspace = true }
+toml = "0.8"

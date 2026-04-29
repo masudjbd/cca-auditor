@@ -3,6 +3,7 @@
     windows_subsystem = "windows"
 )]
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use auditor_db::DbPool;
 use auditor_ipc::commands::*;
@@ -12,40 +13,53 @@ use tauri::{
     Manager,
 };
 
+fn find_config_file(name: &str) -> Option<PathBuf> {
+    std::env::current_dir().ok().and_then(|p| {
+        let candidates = [
+            p.join(format!("config/{}", name)),
+            p.join(format!("../../config/{}", name)),
+            p.join(format!("../../../config/{}", name)),
+        ];
+        candidates.iter().find(|p| p.exists()).cloned()
+    })
+}
+
+fn load_user_settings() -> AppSettings {
+    let path = dirs::home_dir()
+        .map(|h| h.join(".cca-audit").join("settings.json"));
+
+    if let Some(path) = path {
+        if path.exists() {
+            if let Ok(json) = std::fs::read_to_string(&path) {
+                if let Ok(settings) = serde_json::from_str::<AppSettings>(&json) {
+                    return settings;
+                }
+            }
+        }
+    }
+    AppSettings::default()
+}
+
 fn main() {
-    // Initialize tracing
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .init();
 
     tracing::info!("CCAudit starting...");
 
-    // Set up DB path: ~/.cca-audit/audit.db
+    // Initialize DB
     let home = dirs::home_dir().expect("could not find home directory");
     let cca_dir = home.join(".cca-audit");
     std::fs::create_dir_all(&cca_dir).expect("failed to create ~/.cca-audit");
     let db_path = cca_dir.join("audit.db");
 
     tracing::info!("opening database at {:?}", db_path);
-
-    // Initialize DB pool
     let db_pool: Arc<DbPool> = Arc::new(
         auditor_db::create_pool(&db_path).expect("failed to create database pool")
     );
 
     // Load tool fingerprints
-    let config_path = std::env::current_dir()
-        .ok()
-        .and_then(|p| {
-            let candidates = [
-                p.join("config/tools.toml"),
-                p.join("../../config/tools.toml"),
-                p.join("../../../config/tools.toml"),
-            ];
-            candidates.iter().find(|p| p.exists()).cloned()
-        });
-
-    let fingerprints = match config_path {
+    let fingerprints = match find_config_file("tools.toml") {
         Some(p) => {
             tracing::info!("loading tool fingerprints from {:?}", p);
             let path_str = p.to_string_lossy();
@@ -59,10 +73,40 @@ fn main() {
             vec![]
         }
     };
-
     tracing::info!("loaded {} tool fingerprints", fingerprints.len());
 
-    // Build Tauri app
+    // Load sensitive paths config
+    let sensitive_patterns = match find_config_file("sensitive-paths.toml") {
+        Some(p) => {
+            tracing::info!("loading sensitive paths from {:?}", p);
+            auditor_fs::load_sensitive_paths(&p).unwrap_or_else(|e| {
+                tracing::warn!("failed to load sensitive paths: {}", e);
+                vec![]
+            })
+        }
+        None => {
+            tracing::warn!("config/sensitive-paths.toml not found");
+            vec![]
+        }
+    };
+    tracing::info!("loaded {} sensitive path patterns", sensitive_patterns.len());
+
+    // Load user-configured watch paths from settings.json
+    let user_settings = load_user_settings();
+    let watch_paths: Vec<PathBuf> = user_settings
+        .watch_paths
+        .iter()
+        .map(|p| {
+            // Expand ~ to home directory
+            if p.starts_with("~/") {
+                home.join(&p[2..])
+            } else {
+                PathBuf::from(p)
+            }
+        })
+        .collect();
+    tracing::info!("watching {} paths", watch_paths.len());
+
     let db_pool_for_monitors = db_pool.clone();
     let fingerprints_for_monitors = fingerprints.clone();
 
@@ -83,13 +127,12 @@ fn main() {
         .setup(move |app| {
             tracing::info!("Tauri app initialized");
 
-            // Build system tray menu
+            // System tray menu
             let show_item = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
             let hide_item = MenuItem::with_id(app, "hide", "Hide Window", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit CCAudit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &hide_item, &quit_item])?;
 
-            // Build tray icon
             let _tray = TrayIconBuilder::new()
                 .menu(&menu)
                 .tooltip("CCAudit — AI Tool Auditor")
@@ -113,13 +156,17 @@ fn main() {
                 })
                 .build(app)?;
 
-            // Spawn monitor supervisor using Tauri's async runtime
+            // Spawn monitor supervisor
             let db_clone = db_pool_for_monitors.clone();
             let fps_clone = fingerprints_for_monitors.clone();
+            let watch_paths_clone = watch_paths.clone();
+            let sensitive_clone = sensitive_patterns.clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = auditor_monitors::run_supervisor(
                     db_clone,
                     fps_clone,
+                    watch_paths_clone,
+                    sensitive_clone,
                 ).await {
                     tracing::error!("monitor supervisor failed: {}", e);
                 }

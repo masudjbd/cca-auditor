@@ -139,9 +139,11 @@ dependencies = [
  "auditor-db",
  "dirs 5.0.1",
  "notify",
+ "serde",
  "thiserror 1.0.69",
  "tokio",
  "tokio-util",
+ "toml 0.8.23",
  "tracing",
 ]
 
@@ -435,6 +437,7 @@ dependencies = [
  "auditor-core",
  "auditor-db",
  "auditor-detect",
+ "auditor-fs",
  "auditor-ipc",
  "auditor-monitors",
  "dirs 5.0.1",

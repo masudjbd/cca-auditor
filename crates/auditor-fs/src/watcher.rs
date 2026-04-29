@@ -1,23 +1,61 @@
 use auditor_db::DbPool;
+use notify::{Config, Event, EventKind as NotifyEventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use anyhow::Result;
 
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct SensitivePathConfig {
+    pub pattern: String,
+    pub severity: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct SensitivePathsFile {
+    #[serde(rename = "path")]
+    pub paths: Vec<SensitivePathConfig>,
+}
+
+pub fn load_sensitive_paths(toml_path: &Path) -> Result<Vec<SensitivePathConfig>> {
+    let content = std::fs::read_to_string(toml_path)?;
+    let parsed: SensitivePathsFile = toml::from_str(&content)?;
+    Ok(parsed.paths)
+}
+
 pub async fn start_watcher(
-    _db: Arc<DbPool>,
+    db: Arc<DbPool>,
+    watch_paths: Vec<PathBuf>,
+    sensitive_patterns: Vec<SensitivePathConfig>,
     shutdown: CancellationToken,
 ) -> Result<()> {
-    let (_tx, _rx): (tokio::sync::mpsc::UnboundedSender<()>, _) = tokio::sync::mpsc::unbounded_channel();
+    let (tx, mut rx) = mpsc::unbounded_channel();
 
-    // Watch home directory and common project paths
-    let home = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-    let _watch_paths = vec![
-        home.clone(),
-        home.join("projects"),
-        home.join("code"),
-        home.join("workspace"),
-    ];
+    let watcher_tx = tx.clone();
+    let mut watcher = RecommendedWatcher::new(
+        move |res: notify::Result<Event>| {
+            if let Ok(event) = res {
+                let _ = watcher_tx.send(event);
+            }
+        },
+        Config::default().with_poll_interval(Duration::from_secs(2)),
+    )?;
+
+    // Register watches for each configured path
+    for path in &watch_paths {
+        if path.exists() {
+            if let Err(e) = watcher.watch(path, RecursiveMode::Recursive) {
+                tracing::warn!("failed to watch {:?}: {}", path, e);
+            } else {
+                tracing::info!("watching {:?}", path);
+            }
+        } else {
+            tracing::debug!("watch path does not exist: {:?}", path);
+        }
+    }
 
     loop {
         tokio::select! {
@@ -25,13 +63,96 @@ pub async fn start_watcher(
                 tracing::info!("FS watcher shutting down");
                 break;
             }
-            _ = tokio::time::sleep(Duration::from_secs(1)) => {
-                // TODO: implement notify watcher with proper event handling
-                // TODO: attribute to active tool session
-                tracing::debug!("FS monitor tick");
+            Some(event) = rx.recv() => {
+                handle_event(&db, &event, &sensitive_patterns).await;
             }
         }
     }
 
     Ok(())
+}
+
+async fn handle_event(
+    db: &Arc<DbPool>,
+    event: &Event,
+    sensitive_patterns: &[SensitivePathConfig],
+) {
+    // Only process write/create/modify events
+    let is_write = matches!(
+        event.kind,
+        NotifyEventKind::Modify(_) | NotifyEventKind::Create(_)
+    );
+
+    if !is_write {
+        return;
+    }
+
+    for path in &event.paths {
+        // Skip noisy paths
+        let path_str = path.to_string_lossy();
+        if path_str.contains("/.git/")
+            || path_str.contains("/node_modules/")
+            || path_str.contains("/target/")
+            || path_str.contains("/.DS_Store")
+        {
+            continue;
+        }
+
+        // Check against sensitive patterns
+        if let Some(matched) = match_sensitive(path, sensitive_patterns) {
+            let detail = format!(
+                "{{\"path\":\"{}\",\"reason\":\"{}\"}}",
+                path_str.replace('"', "\\\""),
+                matched.reason.replace('"', "\\\"")
+            );
+
+            if let Err(e) = auditor_db::queries::alerts::insert_alert(
+                db,
+                "sensitive_path_access",
+                &matched.severity,
+                &detail,
+            ) {
+                tracing::warn!("failed to insert alert: {}", e);
+            } else {
+                tracing::warn!(
+                    "[ALERT] sensitive path accessed: {} (reason: {})",
+                    path_str,
+                    matched.reason
+                );
+            }
+        }
+    }
+}
+
+fn match_sensitive<'a>(
+    path: &Path,
+    patterns: &'a [SensitivePathConfig],
+) -> Option<&'a SensitivePathConfig> {
+    let path_str = path.to_string_lossy();
+    let home = dirs::home_dir().map(|h| h.to_string_lossy().to_string()).unwrap_or_default();
+
+    for pattern_cfg in patterns {
+        let mut pattern = pattern_cfg.pattern.clone();
+        // Expand ~/ to home directory
+        if pattern.starts_with("~/") {
+            pattern = pattern.replacen("~", &home, 1);
+        }
+
+        // Convert glob to simple substring match for ** and prefix match for /*
+        if pattern.ends_with("/**") {
+            let prefix = &pattern[..pattern.len() - 3];
+            if path_str.starts_with(prefix) {
+                return Some(pattern_cfg);
+            }
+        } else if pattern.starts_with("**/") {
+            let suffix = &pattern[3..];
+            if path_str.ends_with(suffix) {
+                return Some(pattern_cfg);
+            }
+        } else if path_str.contains(&pattern) {
+            return Some(pattern_cfg);
+        }
+    }
+
+    None
 }
