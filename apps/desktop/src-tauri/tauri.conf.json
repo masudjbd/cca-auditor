@@ -1,29 +1,32 @@
 {
-  "build": {
-    "devPath": "http://localhost:5173",
-    "distDir": "../ui/dist"
-  },
-  "package": {
+  "app": {
+    "id": "com.masudjbd.cca-audit",
     "productName": "CCAudit",
-    "version": "0.1.0"
-  },
-  "tauri": {
-    "allowlist": {
-      "shell": {
-        "open": true
-      }
-    },
+    "version": "0.1.0",
     "windows": [
       {
-        "fullscreen": false,
-        "height": 900,
-        "resizable": true,
         "title": "CCAudit",
-        "width": 1200
+        "width": 1200,
+        "height": 900,
+        "resizable": true
       }
     ],
     "security": {
       "csp": "default-src 'self'"
+    },
+    "allowlist": {
+      "shell": {
+        "open": true
+      }
     }
+  },
+  "build": {
+    "devPath": "http://localhost:5173",
+    "distDir": "../ui/dist",
+    "devUrl": "http://localhost:5173"
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "msi", "appimage", "deb"]
   }
 }
