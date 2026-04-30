@@ -12,6 +12,7 @@ use tauri::{
     tray::TrayIconBuilder,
     Emitter, Manager,
 };
+use std::collections::HashMap;
 
 fn find_config_file(name: &str) -> Option<PathBuf> {
     std::env::current_dir().ok().and_then(|p| {
@@ -22,6 +23,40 @@ fn find_config_file(name: &str) -> Option<PathBuf> {
         ];
         candidates.iter().find(|p| p.exists()).cloned()
     })
+}
+
+fn compute_tray_summary(pool: &Arc<DbPool>) -> String {
+    use auditor_db::queries::sessions::get_sessions;
+
+    let sessions = get_sessions(pool, 100).unwrap_or_default();
+    let active: Vec<_> = sessions.iter().filter(|s| s.ended_at.is_none()).collect();
+
+    if active.is_empty() {
+        return "CCAudit — No tools active".to_string();
+    }
+
+    let mut tool_counts: HashMap<String, usize> = HashMap::new();
+    for session in &active {
+        *tool_counts.entry(session.tool_id.0.clone()).or_insert(0) += 1;
+    }
+
+    let tool_summary: Vec<String> = tool_counts
+        .iter()
+        .map(|(tool, count)| {
+            if *count > 1 {
+                format!("{} ({})", tool, count)
+            } else {
+                tool.clone()
+            }
+        })
+        .collect();
+
+    format!(
+        "CCAudit — {} session{} • {}",
+        active.len(),
+        if active.len() == 1 { "" } else { "s" },
+        tool_summary.join(", ")
+    )
 }
 
 fn load_user_settings() -> AppSettings {
@@ -190,7 +225,7 @@ fn main() {
             let quit_item = MenuItem::with_id(app, "quit", "Quit CCAudit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &hide_item, &quit_item])?;
 
-            let _tray = TrayIconBuilder::new()
+            let tray = TrayIconBuilder::with_id("main-tray")
                 .menu(&menu)
                 .tooltip("CCAudit — AI Tool Auditor")
                 .icon(app.default_window_icon().unwrap().clone())
@@ -212,6 +247,22 @@ fn main() {
                     _ => {}
                 })
                 .build(app)?;
+
+            // Live tray tooltip updater (every 2s)
+            let app_handle_for_tray = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(2));
+                loop {
+                    ticker.tick().await;
+                    if let Some(tray) = app_handle_for_tray.tray_by_id("main-tray") {
+                        let pool: tauri::State<Arc<DbPool>> = app_handle_for_tray.state();
+                        let summary = compute_tray_summary(&pool);
+                        let _ = tray.set_tooltip(Some(&summary));
+                    }
+                }
+            });
+            // Drop unused tray binding
+            drop(tray);
 
             // Spawn monitor supervisor with broadcast channel
             let db_clone = db_pool_for_monitors.clone();

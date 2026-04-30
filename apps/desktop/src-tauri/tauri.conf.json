@@ -1,7 +1,9 @@
 {
   "build": {
     "devUrl": "http://localhost:5173",
-    "frontendDist": "../ui/dist"
+    "frontendDist": "../ui/dist",
+    "beforeDevCommand": "pnpm -C ../ui dev",
+    "beforeBuildCommand": "pnpm -C ../ui build"
   },
   "app": {
     "windows": [

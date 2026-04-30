@@ -5,14 +5,50 @@ use netstat2::{
     get_sockets_info, AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, SocketInfo, TcpState,
 };
 use std::collections::{HashMap, HashSet};
+use std::net::IpAddr;
+use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use time::OffsetDateTime;
 use tokio::sync::RwLock;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use anyhow::Result;
+
+/// DNS cache: addr → (hostname, expiry)
+struct DnsCache {
+    entries: HashMap<String, (Option<String>, Instant)>,
+    ttl: Duration,
+}
+
+impl DnsCache {
+    fn new() -> Self {
+        Self {
+            entries: HashMap::new(),
+            ttl: Duration::from_secs(300), // 5 min cache
+        }
+    }
+
+    fn get_or_resolve(&mut self, addr: &str) -> Option<String> {
+        let now = Instant::now();
+        if let Some((host, expiry)) = self.entries.get(addr) {
+            if now < *expiry {
+                return host.clone();
+            }
+        }
+
+        let resolved = if let Ok(ip) = IpAddr::from_str(addr) {
+            dns_lookup::lookup_addr(&ip).ok()
+        } else {
+            None
+        };
+
+        let host = resolved.filter(|h| !h.is_empty() && h != addr);
+        self.entries.insert(addr.to_string(), (host.clone(), now + self.ttl));
+        host
+    }
+}
 
 /// Cache key for connection deduplication: (pid, remote_addr, remote_port)
 type ConnKey = (u32, String, u16);
@@ -24,6 +60,7 @@ pub async fn start_monitor(
 ) -> Result<()> {
     let mut ticker = interval(Duration::from_secs(5));
     let mut seen_connections: HashSet<ConnKey> = HashSet::new();
+    let mut dns_cache = DnsCache::new();
 
     loop {
         tokio::select! {
@@ -32,7 +69,7 @@ pub async fn start_monitor(
                 break;
             }
             _ = ticker.tick() => {
-                if let Err(e) = poll_sockets(&db, &active_sessions, &mut seen_connections).await {
+                if let Err(e) = poll_sockets(&db, &active_sessions, &mut seen_connections, &mut dns_cache).await {
                     tracing::warn!("socket polling error: {}", e);
                 }
             }
@@ -46,6 +83,7 @@ async fn poll_sockets(
     db: &Arc<DbPool>,
     active_sessions: &Arc<RwLock<HashMap<u32, auditor_core::session::AuditSession>>>,
     seen_connections: &mut HashSet<ConnKey>,
+    dns_cache: &mut DnsCache,
 ) -> Result<()> {
     let af_flags = AddressFamilyFlags::IPV4 | AddressFamilyFlags::IPV6;
     let proto_flags = ProtocolFlags::TCP | ProtocolFlags::UDP;
@@ -108,12 +146,19 @@ async fn poll_sockets(
                 current_keys.insert(key.clone());
 
                 if !seen_connections.contains(&key) {
+                    let hostname = dns_cache.get_or_resolve(&addr);
+                    let display_addr = if let Some(host) = &hostname {
+                        format!("{} ({})", host, addr)
+                    } else {
+                        addr.clone()
+                    };
+
                     let event = AuditEvent {
                         id: Uuid::new_v4(),
                         session_id: *session_id,
                         tool_id: tool_id.clone(),
                         kind: EventKind::NetConnect {
-                            addr: addr.clone(),
+                            addr: display_addr,
                             port,
                             proto: proto.to_string(),
                         },
@@ -126,7 +171,10 @@ async fn poll_sockets(
                     } else {
                         tracing::info!(
                             "net: {} → {}:{} ({})",
-                            tool_id.0, addr, port, proto
+                            tool_id.0,
+                            hostname.as_deref().unwrap_or(&addr),
+                            port,
+                            proto
                         );
                     }
                 }

@@ -14,3 +14,5 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 time = { workspace = true }
 uuid = { workspace = true }
+dns-lookup = "2"
+serde = { workspace = true }
