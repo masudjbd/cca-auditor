@@ -4,6 +4,7 @@ import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Live from './pages/Live'
 import Sessions from './pages/Sessions'
+import ToolDetail from './pages/ToolDetail'
 import Alerts from './pages/Alerts'
 import Reports from './pages/Reports'
 import Publish from './pages/Publish'
@@ -18,6 +19,7 @@ function AppContent() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/live" element={<Live />} />
         <Route path="/sessions" element={<Sessions />} />
+        <Route path="/tools/:toolId" element={<ToolDetail />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/publish" element={<Publish />} />

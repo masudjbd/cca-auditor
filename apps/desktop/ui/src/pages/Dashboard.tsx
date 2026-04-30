@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
 import { useAuditStore } from '../store/auditStore'
 import { useAuditStream } from '../hooks/useAuditStream'
@@ -173,9 +174,10 @@ export default function Dashboard() {
                 : '—'
 
               return (
-                <div
+                <Link
                   key={toolId}
-                  className={`rounded-lg shadow border p-5 ${display.color}`}
+                  to={`/tools/${toolId}`}
+                  className={`rounded-lg shadow border p-5 hover:shadow-md transition-shadow cursor-pointer block ${display.color}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -219,7 +221,7 @@ export default function Dashboard() {
                   <div className="mt-3 text-xs text-gray-600">
                     PIDs: {toolSessions.map((s) => s.pid).join(', ')}
                   </div>
-                </div>
+                </Link>
               )
             })}
           </div>
