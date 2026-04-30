@@ -75,6 +75,13 @@ fn main() {
     };
     tracing::info!("loaded {} tool fingerprints", fingerprints.len());
 
+    // Seed tools table to satisfy FOREIGN KEY constraints
+    if let Err(e) = auditor_db::queries::tools::seed_tools(&db_pool, &fingerprints) {
+        tracing::warn!("failed to seed tools table: {}", e);
+    } else {
+        tracing::info!("seeded tools table");
+    }
+
     // Load sensitive paths config
     let sensitive_patterns = match find_config_file("sensitive-paths.toml") {
         Some(p) => {
@@ -111,6 +118,13 @@ fn main() {
     let fingerprints_for_monitors = fingerprints.clone();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // Focus existing window if user tries to launch a 2nd instance
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .manage(db_pool)
         .invoke_handler(tauri::generate_handler![
