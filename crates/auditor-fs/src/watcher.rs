@@ -33,13 +33,40 @@ pub fn load_sensitive_paths(toml_path: &Path) -> Result<Vec<SensitivePathConfig>
 
 pub async fn start_watcher(
     db: Arc<DbPool>,
-    watch_paths: Vec<PathBuf>,
+    watch_paths: Arc<tokio::sync::RwLock<Vec<PathBuf>>>,
     sensitive_patterns: Vec<SensitivePathConfig>,
     alert_sender: Option<AlertSender>,
+    reload_signal: Arc<tokio::sync::Notify>,
     shutdown: CancellationToken,
 ) -> Result<()> {
     let (tx, mut rx) = mpsc::unbounded_channel();
 
+    let mut current_watcher = build_watcher(&watch_paths, &tx).await?;
+
+    loop {
+        tokio::select! {
+            _ = shutdown.cancelled() => {
+                tracing::info!("FS watcher shutting down");
+                break;
+            }
+            _ = reload_signal.notified() => {
+                tracing::info!("FS watcher: reload signal received, rebuilding");
+                drop(current_watcher);
+                current_watcher = build_watcher(&watch_paths, &tx).await?;
+            }
+            Some(event) = rx.recv() => {
+                handle_event(&db, &event, &sensitive_patterns, alert_sender.as_ref()).await;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn build_watcher(
+    watch_paths: &Arc<tokio::sync::RwLock<Vec<PathBuf>>>,
+    tx: &mpsc::UnboundedSender<Event>,
+) -> Result<RecommendedWatcher> {
     let watcher_tx = tx.clone();
     let mut watcher = RecommendedWatcher::new(
         move |res: notify::Result<Event>| {
@@ -50,32 +77,31 @@ pub async fn start_watcher(
         Config::default().with_poll_interval(Duration::from_secs(2)),
     )?;
 
-    // Register watches for each configured path
-    for path in &watch_paths {
+    let paths = watch_paths.read().await;
+    let mut watched_count = 0;
+    for path in paths.iter() {
         if path.exists() {
-            if let Err(e) = watcher.watch(path, RecursiveMode::Recursive) {
-                tracing::warn!("failed to watch {:?}: {}", path, e);
-            } else {
-                tracing::info!("watching {:?}", path);
+            match watcher.watch(path, RecursiveMode::Recursive) {
+                Ok(()) => {
+                    tracing::info!("watching {:?}", path);
+                    watched_count += 1;
+                }
+                Err(e) => {
+                    tracing::warn!("failed to watch {:?}: {}", path, e);
+                }
             }
         } else {
             tracing::debug!("watch path does not exist: {:?}", path);
         }
     }
 
-    loop {
-        tokio::select! {
-            _ = shutdown.cancelled() => {
-                tracing::info!("FS watcher shutting down");
-                break;
-            }
-            Some(event) = rx.recv() => {
-                handle_event(&db, &event, &sensitive_patterns, alert_sender.as_ref()).await;
-            }
-        }
+    if watched_count == 0 && !paths.is_empty() {
+        tracing::warn!("no paths could be watched (configured: {})", paths.len());
+    } else if watched_count > 0 {
+        tracing::info!("FS watcher active on {} path(s)", watched_count);
     }
 
-    Ok(())
+    Ok(watcher)
 }
 
 async fn handle_event(

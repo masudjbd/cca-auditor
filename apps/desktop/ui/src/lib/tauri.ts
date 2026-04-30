@@ -100,7 +100,8 @@ export interface AppSettings {
 
 export async function saveSettingsToBackend(settings: AppSettings): Promise<void> {
   try {
-    await invoke('save_settings', { settings })
+    // Use save_settings_with_reload for instant FS watcher reload
+    await invoke('save_settings_with_reload', { settings })
   } catch (error) {
     console.warn('Failed to save settings to backend, using localStorage only:', error)
     throw error

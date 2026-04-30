@@ -3,7 +3,7 @@ use auditor_db::DbPool;
 use auditor_fs::SensitivePathConfig;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Notify, RwLock};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use anyhow::Result;
@@ -11,12 +11,15 @@ use anyhow::Result;
 use crate::broadcast::{EventSender, MonitorEvent};
 use crate::state::{create_state, ActiveSessions};
 
+pub type WatchPaths = Arc<RwLock<Vec<PathBuf>>>;
+
 pub async fn run_supervisor(
     db: Arc<DbPool>,
     fingerprints: Vec<ToolFingerprint>,
-    watch_paths: Vec<PathBuf>,
+    watch_paths: WatchPaths,
     sensitive_patterns: Vec<SensitivePathConfig>,
     events: EventSender,
+    fs_reload: Arc<Notify>,
 ) -> Result<()> {
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
@@ -74,23 +77,25 @@ pub async fn run_supervisor(
         ).await
     });
 
-    // FS monitor with alert forwarding
+    // FS monitor with hot-reload + alert forwarding
     let db_clone = db.clone();
     let shutdown_clone = shutdown.clone();
     let watch_paths_clone = watch_paths.clone();
     let sensitive_clone = sensitive_patterns.clone();
     let alert_tx_clone = alert_tx.clone();
+    let fs_reload_clone = fs_reload.clone();
     tasks.spawn(async move {
         auditor_fs::start_watcher(
             db_clone,
             watch_paths_clone,
             sensitive_clone,
             Some(alert_tx_clone),
+            fs_reload_clone,
             shutdown_clone,
         ).await
     });
 
-    // Network monitor (5s polling, only AI tool PIDs)
+    // Network monitor
     let db_clone = db.clone();
     let shutdown_clone = shutdown.clone();
     let sessions_clone = active_sessions.clone();
@@ -102,14 +107,14 @@ pub async fn run_supervisor(
         ).await
     });
 
-    // Rollup task: 1Hz samples → 10s averages → 1min averages, then purge
+    // Rollup task
     let db_clone = db.clone();
     let shutdown_clone = shutdown.clone();
     tasks.spawn(async move {
         run_rollup_task(db_clone, shutdown_clone).await
     });
 
-    drop(alert_tx); // Allow forwarder to close when all monitors are done
+    drop(alert_tx);
 
     while let Some(result) = tasks.join_next().await {
         match result {
@@ -129,7 +134,7 @@ async fn run_rollup_task(db: Arc<DbPool>, shutdown: CancellationToken) -> Result
 
     let mut ticker_10s = interval(Duration::from_secs(10));
     let mut ticker_1m = interval(Duration::from_secs(60));
-    let mut ticker_purge = interval(Duration::from_secs(3600)); // hourly purge
+    let mut ticker_purge = interval(Duration::from_secs(3600));
 
     loop {
         tokio::select! {
@@ -152,7 +157,6 @@ async fn run_rollup_task(db: Arc<DbPool>, shutdown: CancellationToken) -> Result
                 }
             }
             _ = ticker_purge.tick() => {
-                // Retention: 24h raw, 30d 10s, indefinite 1m
                 match auditor_db::queries::samples::purge_old_samples(&db, 86400) {
                     Ok(n) if n > 0 => tracing::info!("purged {} old raw samples", n),
                     Err(e) => tracing::warn!("purge failed: {}", e),

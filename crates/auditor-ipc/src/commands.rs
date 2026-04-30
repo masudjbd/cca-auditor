@@ -186,16 +186,22 @@ fn settings_path() -> Option<std::path::PathBuf> {
     dirs::home_dir().map(|h| h.join(".cca-audit").join("settings.json"))
 }
 
-#[tauri::command]
-pub fn save_settings(settings: AppSettings) -> Result<(), String> {
+/// Save settings to disk. Caller (main.rs) should follow up with reload signal
+/// to FS watcher if watch_paths changed.
+pub fn save_settings_impl(settings: &AppSettings) -> Result<(), String> {
     let path = settings_path().ok_or("could not determine home directory")?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let json = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
     std::fs::write(&path, json).map_err(|e| e.to_string())?;
     tracing::info!("saved settings to {:?}", path);
     Ok(())
+}
+
+#[tauri::command]
+pub fn save_settings(settings: AppSettings) -> Result<(), String> {
+    save_settings_impl(&settings)
 }
 
 #[tauri::command]

@@ -6,4 +6,4 @@ pub mod supervisor;
 
 pub use broadcast::{create_channel, EventReceiver, EventSender, MonitorEvent};
 pub use state::{ActiveSessions, create_state};
-pub use supervisor::run_supervisor;
+pub use supervisor::{run_supervisor, WatchPaths};

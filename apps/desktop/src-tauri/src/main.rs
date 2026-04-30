@@ -7,11 +7,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use auditor_db::DbPool;
 use auditor_ipc::commands::*;
+use auditor_monitors::WatchPaths;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     Emitter, Manager,
 };
+use tokio::sync::{Notify, RwLock};
 use std::collections::HashMap;
 
 fn find_config_file(name: &str) -> Option<PathBuf> {
@@ -23,6 +25,45 @@ fn find_config_file(name: &str) -> Option<PathBuf> {
         ];
         candidates.iter().find(|p| p.exists()).cloned()
     })
+}
+
+#[tauri::command]
+async fn save_settings_with_reload(
+    watch_paths_state: tauri::State<'_, WatchPaths>,
+    fs_reload: tauri::State<'_, Arc<Notify>>,
+    settings: auditor_ipc::commands::AppSettings,
+) -> Result<(), String> {
+    // 1. Save to disk
+    auditor_ipc::commands::save_settings_impl(&settings)?;
+
+    // 2. Update shared watch paths
+    let home = dirs::home_dir().ok_or("could not find home directory")?;
+    let new_paths: Vec<PathBuf> = settings
+        .watch_paths
+        .iter()
+        .map(|p| expand_path(p, &home))
+        .collect();
+
+    {
+        let mut paths = watch_paths_state.write().await;
+        *paths = new_paths;
+    }
+
+    // 3. Signal FS watcher to rebuild
+    fs_reload.notify_one();
+    tracing::info!("settings saved + FS watcher reload signaled");
+
+    Ok(())
+}
+
+fn expand_path(p: &str, home: &std::path::Path) -> PathBuf {
+    if p.starts_with("~/") {
+        home.join(&p[2..])
+    } else if p == "~" {
+        home.to_path_buf()
+    } else {
+        PathBuf::from(p)
+    }
 }
 
 fn compute_tray_summary(pool: &Arc<DbPool>) -> String {
@@ -135,26 +176,24 @@ fn main() {
 
     // Load user-configured watch paths from settings.json
     let user_settings = load_user_settings();
-    let watch_paths: Vec<PathBuf> = user_settings
+    let initial_watch_paths: Vec<PathBuf> = user_settings
         .watch_paths
         .iter()
-        .map(|p| {
-            // Expand ~ to home directory
-            if p.starts_with("~/") {
-                home.join(&p[2..])
-            } else {
-                PathBuf::from(p)
-            }
-        })
+        .map(|p| expand_path(p, &home))
         .collect();
-    tracing::info!("watching {} paths", watch_paths.len());
+    tracing::info!("watching {} paths", initial_watch_paths.len());
+
+    // Shared, mutable watch paths (allows hot-reload from save_settings)
+    let watch_paths: WatchPaths = Arc::new(RwLock::new(initial_watch_paths));
+    let fs_reload_signal = Arc::new(Notify::new());
 
     let db_pool_for_monitors = db_pool.clone();
     let fingerprints_for_monitors = fingerprints.clone();
+    let watch_paths_for_monitors = watch_paths.clone();
+    let fs_reload_for_monitors = fs_reload_signal.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            // Focus existing window if user tries to launch a 2nd instance
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
@@ -162,6 +201,8 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(db_pool)
+        .manage(watch_paths.clone())
+        .manage(fs_reload_signal.clone())
         .invoke_handler(tauri::generate_handler![
             get_live_sessions,
             get_events,
@@ -171,6 +212,7 @@ fn main() {
             generate_report,
             push_with_guardrail,
             save_settings,
+            save_settings_with_reload,
             load_settings,
         ])
         .setup(move |app| {
@@ -267,9 +309,10 @@ fn main() {
             // Spawn monitor supervisor with broadcast channel
             let db_clone = db_pool_for_monitors.clone();
             let fps_clone = fingerprints_for_monitors.clone();
-            let watch_paths_clone = watch_paths.clone();
+            let watch_paths_clone = watch_paths_for_monitors.clone();
             let sensitive_clone = sensitive_patterns.clone();
             let event_tx_clone = event_tx.clone();
+            let fs_reload_clone = fs_reload_for_monitors.clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = auditor_monitors::run_supervisor(
                     db_clone,
@@ -277,6 +320,7 @@ fn main() {
                     watch_paths_clone,
                     sensitive_clone,
                     event_tx_clone,
+                    fs_reload_clone,
                 ).await {
                     tracing::error!("monitor supervisor failed: {}", e);
                 }
