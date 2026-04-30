@@ -63,6 +63,44 @@ pub fn save_report_to_file(path: String, content: String) -> Result<(), String> 
         .map_err(|e| format!("failed to write {}: {}", path, e))
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserSensitivePath {
+    pub pattern: String,
+    pub severity: String,
+    pub reason: String,
+}
+
+fn user_sensitive_path() -> Option<std::path::PathBuf> {
+    dirs::home_dir().map(|h| h.join(".cca-audit").join("sensitive-paths.json"))
+}
+
+#[tauri::command]
+pub fn get_user_sensitive_paths() -> Result<Vec<UserSensitivePath>, String> {
+    let path = match user_sensitive_path() {
+        Some(p) => p,
+        None => return Ok(vec![]),
+    };
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+    let json = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_user_sensitive_paths(
+    paths: Vec<UserSensitivePath>,
+) -> Result<(), String> {
+    let path = user_sensitive_path().ok_or("could not determine home directory")?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let json = serde_json::to_string_pretty(&paths).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())?;
+    tracing::info!("saved {} user sensitive path patterns", paths.len());
+    Ok(())
+}
+
 #[tauri::command]
 pub fn open_path_in_finder(path: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]

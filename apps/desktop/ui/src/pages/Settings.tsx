@@ -14,6 +14,9 @@ import {
   getDbStats,
   purgeAllData,
   DbStats,
+  getUserSensitivePaths,
+  saveUserSensitivePaths,
+  UserSensitivePath,
 } from '../lib/tauri'
 
 function formatBytes(bytes: number): string {
@@ -35,6 +38,10 @@ export default function Settings() {
   const [encryption, setEncryption] = useState(false)
   const [saved, setSaved] = useState(false)
   const [dbStats, setDbStats] = useState<DbStats | null>(null)
+  const [userPatterns, setUserPatterns] = useState<UserSensitivePath[]>([])
+  const [newPatternText, setNewPatternText] = useState('')
+  const [newPatternSeverity, setNewPatternSeverity] = useState<'high' | 'medium' | 'low'>('high')
+  const [newPatternReason, setNewPatternReason] = useState('')
 
   const tools = Object.keys(TOOL_PATH_SUGGESTIONS)
 
@@ -45,9 +52,35 @@ export default function Settings() {
 
   useEffect(() => {
     loadStats()
-    const interval = setInterval(loadStats, 5000) // refresh every 5s
+    const interval = setInterval(loadStats, 5000)
+    getUserSensitivePaths().then(setUserPatterns)
     return () => clearInterval(interval)
   }, [])
+
+  const addPattern = async () => {
+    if (!newPatternText.trim()) {
+      alert('Pattern is required (e.g., ~/.config/myapp/**)')
+      return
+    }
+    const updated = [
+      ...userPatterns,
+      {
+        pattern: newPatternText.trim(),
+        severity: newPatternSeverity,
+        reason: newPatternReason.trim() || 'User-defined sensitive path',
+      },
+    ]
+    setUserPatterns(updated)
+    await saveUserSensitivePaths(updated)
+    setNewPatternText('')
+    setNewPatternReason('')
+  }
+
+  const removePattern = async (idx: number) => {
+    const updated = userPatterns.filter((_, i) => i !== idx)
+    setUserPatterns(updated)
+    await saveUserSensitivePaths(updated)
+  }
 
   const handlePurge = async () => {
     if (
@@ -365,6 +398,91 @@ export default function Settings() {
           {saved && (
             <span className="text-sm text-green-600 font-medium">✓ Saved</span>
           )}
+        </div>
+
+        {/* Sensitive Paths */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            Sensitive Path Alerts
+          </h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Custom path patterns that trigger alerts when accessed. The app also has
+            23 built-in patterns (SSH keys, AWS, .env, etc.) — these are user additions.
+          </p>
+
+          {userPatterns.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {userPatterns.map((p, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-3 p-3 bg-gray-50 rounded border border-gray-200"
+                >
+                  <span
+                    className={`px-2 py-1 rounded text-xs font-medium ${
+                      p.severity === 'high'
+                        ? 'bg-red-100 text-red-700'
+                        : p.severity === 'medium'
+                          ? 'bg-yellow-100 text-yellow-700'
+                          : 'bg-blue-100 text-blue-700'
+                    }`}
+                  >
+                    {p.severity.toUpperCase()}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <code className="text-sm text-gray-900 break-all">
+                      {p.pattern}
+                    </code>
+                    <p className="text-xs text-gray-500 mt-0.5 truncate">
+                      {p.reason}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => removePattern(idx)}
+                    className="text-sm text-red-600 hover:text-red-700 flex-shrink-0"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="grid grid-cols-12 gap-2 items-start">
+            <input
+              type="text"
+              value={newPatternText}
+              onChange={(e) => setNewPatternText(e.target.value)}
+              placeholder="~/secrets/** or **/credentials.json"
+              className="col-span-5 px-3 py-2 border border-gray-300 rounded text-sm font-mono"
+              onKeyPress={(e) => e.key === 'Enter' && addPattern()}
+            />
+            <select
+              value={newPatternSeverity}
+              onChange={(e) => setNewPatternSeverity(e.target.value as 'high' | 'medium' | 'low')}
+              className="col-span-2 px-3 py-2 border border-gray-300 rounded text-sm bg-white"
+            >
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <input
+              type="text"
+              value={newPatternReason}
+              onChange={(e) => setNewPatternReason(e.target.value)}
+              placeholder="Reason (optional)"
+              className="col-span-3 px-3 py-2 border border-gray-300 rounded text-sm"
+            />
+            <button
+              onClick={addPattern}
+              className="col-span-2 px-3 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+            >
+              Add Pattern
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Patterns: <code>~/.path</code>, <code>**/file.ext</code>, <code>~/dir/**</code>.
+            Changes apply on next app restart.
+          </p>
         </div>
 
         {/* Database Stats */}

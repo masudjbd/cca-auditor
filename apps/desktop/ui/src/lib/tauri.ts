@@ -164,3 +164,29 @@ export async function openPathInFinder(path: string): Promise<void> {
     console.error('Failed to open path:', error)
   }
 }
+
+export interface UserSensitivePath {
+  pattern: string
+  severity: 'high' | 'medium' | 'low'
+  reason: string
+}
+
+export async function getUserSensitivePaths(): Promise<UserSensitivePath[]> {
+  try {
+    return await invoke<UserSensitivePath[]>('get_user_sensitive_paths')
+  } catch (error) {
+    console.error('Failed to load user sensitive paths:', error)
+    return []
+  }
+}
+
+export async function saveUserSensitivePaths(
+  paths: UserSensitivePath[]
+): Promise<void> {
+  try {
+    await invoke('save_user_sensitive_paths', { paths })
+  } catch (error) {
+    console.error('Failed to save user sensitive paths:', error)
+    throw error
+  }
+}

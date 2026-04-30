@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
 import { useAuditStore } from '../store/auditStore'
@@ -22,16 +22,25 @@ const TOOL_DISPLAY: Record<string, { label: string; color: string; emoji: string
 
 export default function Dashboard() {
   const { sessions, samples, alerts } = useAuditStore()
+  const [refreshing, setRefreshing] = useState(false)
   useAuditStream()
 
-  useEffect(() => {
-    const loadInitial = async () => {
-      const liveSessions = await getLiveSessions()
-      const liveAlerts = await getAlerts(false)
+  const loadInitial = async () => {
+    setRefreshing(true)
+    try {
+      const [liveSessions, liveAlerts] = await Promise.all([
+        getLiveSessions(),
+        getAlerts(false),
+      ])
       useAuditStore.setState({ sessions: liveSessions, alerts: liveAlerts })
+    } finally {
+      setRefreshing(false)
     }
+  }
+
+  useEffect(() => {
     loadInitial()
-    const interval = setInterval(loadInitial, 5000) // refresh every 5s
+    const interval = setInterval(loadInitial, 5000)
     return () => clearInterval(interval)
   }, [])
 
@@ -72,10 +81,22 @@ export default function Dashboard() {
 
   return (
     <div className="p-8">
-      <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
-      <p className="text-gray-600 mt-2">
-        Live monitoring of AI coding tools, file system, and network activity
-      </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
+          <p className="text-gray-600 mt-2">
+            Live monitoring of AI coding tools, file system, and network activity
+          </p>
+        </div>
+        <button
+          onClick={loadInitial}
+          disabled={refreshing}
+          className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50"
+        >
+          <span className={refreshing ? 'animate-spin inline-block' : ''}>↻</span>
+          {refreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
 
       {/* Top stats */}
       <div className="mt-8 grid grid-cols-4 gap-6">

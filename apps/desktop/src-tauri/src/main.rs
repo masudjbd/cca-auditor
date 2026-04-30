@@ -158,8 +158,8 @@ fn main() {
         tracing::info!("seeded tools table");
     }
 
-    // Load sensitive paths config
-    let sensitive_patterns = match find_config_file("sensitive-paths.toml") {
+    // Load sensitive paths config (bundled)
+    let mut sensitive_patterns = match find_config_file("sensitive-paths.toml") {
         Some(p) => {
             tracing::info!("loading sensitive paths from {:?}", p);
             auditor_fs::load_sensitive_paths(&p).unwrap_or_else(|e| {
@@ -172,7 +172,19 @@ fn main() {
             vec![]
         }
     };
-    tracing::info!("loaded {} sensitive path patterns", sensitive_patterns.len());
+
+    // Merge user-defined sensitive paths from ~/.cca-audit/sensitive-paths.json
+    let user_path = home.join(".cca-audit").join("sensitive-paths.json");
+    if user_path.exists() {
+        if let Ok(json) = std::fs::read_to_string(&user_path) {
+            if let Ok(user_paths) = serde_json::from_str::<Vec<auditor_fs::SensitivePathConfig>>(&json) {
+                let user_count = user_paths.len();
+                sensitive_patterns.extend(user_paths);
+                tracing::info!("loaded {} user-defined sensitive paths", user_count);
+            }
+        }
+    }
+    tracing::info!("total {} sensitive path patterns", sensitive_patterns.len());
 
     // Load user-configured watch paths from settings.json
     let user_settings = load_user_settings();
@@ -218,6 +230,8 @@ fn main() {
             purge_all_data,
             save_report_to_file,
             open_path_in_finder,
+            get_user_sensitive_paths,
+            save_user_sensitive_paths,
         ])
         .setup(move |app| {
             tracing::info!("Tauri app initialized");
