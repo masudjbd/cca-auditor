@@ -9,6 +9,7 @@ import Alerts from './pages/Alerts'
 import Reports from './pages/Reports'
 import Publish from './pages/Publish'
 import Settings from './pages/Settings'
+import About from './pages/About'
 
 function AppContent() {
   useAuditStream()
@@ -24,6 +25,7 @@ function AppContent() {
         <Route path="/reports" element={<Reports />} />
         <Route path="/publish" element={<Publish />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/about" element={<About />} />
       </Route>
     </Routes>
   )

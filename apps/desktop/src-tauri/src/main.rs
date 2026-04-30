@@ -214,6 +214,10 @@ fn main() {
             save_settings,
             save_settings_with_reload,
             load_settings,
+            get_db_stats,
+            purge_all_data,
+            save_report_to_file,
+            open_path_in_finder,
         ])
         .setup(move |app| {
             tracing::info!("Tauri app initialized");

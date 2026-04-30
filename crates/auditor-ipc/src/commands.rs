@@ -41,6 +41,55 @@ pub fn get_samples(
 }
 
 pub use auditor_db::queries::alerts::Alert;
+pub use auditor_db::queries::stats::DbStats;
+
+#[tauri::command]
+pub fn get_db_stats(
+    state: tauri::State<'_, Arc<DbPool>>,
+) -> Result<DbStats, String> {
+    auditor_db::queries::stats::get_db_stats(&state).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn purge_all_data(
+    state: tauri::State<'_, Arc<DbPool>>,
+) -> Result<(), String> {
+    auditor_db::queries::stats::purge_all_data(&state).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_report_to_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, content)
+        .map_err(|e| format!("failed to write {}: {}", path, e))
+}
+
+#[tauri::command]
+pub fn open_path_in_finder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg("/select,")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
 
 #[tauri::command]
 pub fn get_alerts(

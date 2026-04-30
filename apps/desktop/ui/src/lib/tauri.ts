@@ -116,3 +116,51 @@ export async function loadSettingsFromBackend(): Promise<AppSettings | null> {
     return null
   }
 }
+
+export interface DbStats {
+  total_sessions: number
+  active_sessions: number
+  total_events: number
+  total_samples: number
+  total_alerts: number
+  undismissed_alerts: number
+  db_size_bytes: number
+  oldest_event_ts: number | null
+  newest_event_ts: number | null
+  events_by_kind: [string, number][]
+}
+
+export async function getDbStats(): Promise<DbStats | null> {
+  try {
+    return await invoke<DbStats>('get_db_stats')
+  } catch (error) {
+    console.error('Failed to get DB stats:', error)
+    return null
+  }
+}
+
+export async function purgeAllData(): Promise<void> {
+  try {
+    await invoke('purge_all_data')
+  } catch (error) {
+    console.error('Failed to purge data:', error)
+    throw error
+  }
+}
+
+export async function saveReportToFile(path: string, content: string): Promise<void> {
+  try {
+    await invoke('save_report_to_file', { path, content })
+  } catch (error) {
+    console.error('Failed to save report:', error)
+    throw error
+  }
+}
+
+export async function openPathInFinder(path: string): Promise<void> {
+  try {
+    await invoke('open_path_in_finder', { path })
+  } catch (error) {
+    console.error('Failed to open path:', error)
+  }
+}

@@ -8,7 +8,25 @@ import {
   saveSettings,
   PersistedSettings,
 } from '../lib/toolPaths'
-import { saveSettingsToBackend, loadSettingsFromBackend } from '../lib/tauri'
+import {
+  saveSettingsToBackend,
+  loadSettingsFromBackend,
+  getDbStats,
+  purgeAllData,
+  DbStats,
+} from '../lib/tauri'
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+function formatTime(ts: number | null): string {
+  if (!ts) return '—'
+  return new Date(ts * 1000).toLocaleString()
+}
 
 export default function Settings() {
   const [watchPaths, setWatchPaths] = useState<string[]>([])
@@ -16,8 +34,36 @@ export default function Settings() {
   const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set())
   const [encryption, setEncryption] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [dbStats, setDbStats] = useState<DbStats | null>(null)
 
   const tools = Object.keys(TOOL_PATH_SUGGESTIONS)
+
+  const loadStats = async () => {
+    const stats = await getDbStats()
+    setDbStats(stats)
+  }
+
+  useEffect(() => {
+    loadStats()
+    const interval = setInterval(loadStats, 5000) // refresh every 5s
+    return () => clearInterval(interval)
+  }, [])
+
+  const handlePurge = async () => {
+    if (
+      !confirm(
+        'This will permanently delete ALL audit data (sessions, events, samples, alerts).\n\nThis cannot be undone. Continue?'
+      )
+    )
+      return
+    try {
+      await purgeAllData()
+      await loadStats()
+      alert('All audit data has been deleted.')
+    } catch (e) {
+      alert(`Failed to purge: ${e}`)
+    }
+  }
 
   // Load persisted settings on mount (try backend first, fall back to localStorage)
   useEffect(() => {
@@ -318,6 +364,117 @@ export default function Settings() {
           </button>
           {saved && (
             <span className="text-sm text-green-600 font-medium">✓ Saved</span>
+          )}
+        </div>
+
+        {/* Database Stats */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Database</h3>
+            <button
+              onClick={loadStats}
+              className="text-sm text-blue-600 hover:text-blue-700"
+            >
+              Refresh
+            </button>
+          </div>
+
+          {dbStats ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded p-3">
+                  <p className="text-xs text-gray-500 uppercase">Database Size</p>
+                  <p className="text-xl font-bold text-gray-900 mt-1">
+                    {formatBytes(dbStats.db_size_bytes)}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded p-3">
+                  <p className="text-xs text-gray-500 uppercase">Total Sessions</p>
+                  <p className="text-xl font-bold text-gray-900 mt-1">
+                    {dbStats.total_sessions}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {dbStats.active_sessions} active
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded p-3">
+                  <p className="text-xs text-gray-500 uppercase">Total Events</p>
+                  <p className="text-xl font-bold text-gray-900 mt-1">
+                    {dbStats.total_events.toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded p-3">
+                  <p className="text-xs text-gray-500 uppercase">Resource Samples</p>
+                  <p className="text-xl font-bold text-gray-900 mt-1">
+                    {dbStats.total_samples.toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded p-3">
+                  <p className="text-xs text-gray-500 uppercase">Total Alerts</p>
+                  <p className="text-xl font-bold text-gray-900 mt-1">
+                    {dbStats.total_alerts}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {dbStats.undismissed_alerts} active
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded p-3">
+                  <p className="text-xs text-gray-500 uppercase">Date Range</p>
+                  <p className="text-sm text-gray-900 mt-1">
+                    {formatTime(dbStats.oldest_event_ts)}
+                  </p>
+                  <p className="text-xs text-gray-500">to</p>
+                  <p className="text-sm text-gray-900">
+                    {formatTime(dbStats.newest_event_ts)}
+                  </p>
+                </div>
+              </div>
+
+              {dbStats.events_by_kind.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">
+                    Events by Kind
+                  </p>
+                  <div className="space-y-1">
+                    {dbStats.events_by_kind.map(([kind, count]) => {
+                      const total = dbStats.events_by_kind.reduce(
+                        (s, [, c]) => s + c,
+                        0
+                      )
+                      const pct = total > 0 ? (count / total) * 100 : 0
+                      return (
+                        <div key={kind} className="flex items-center gap-3">
+                          <div className="w-24 text-xs text-gray-600">{kind}</div>
+                          <div className="flex-1 h-5 bg-gray-100 rounded overflow-hidden relative">
+                            <div
+                              className="h-full bg-blue-500"
+                              style={{ width: `${pct}%` }}
+                            />
+                            <span className="absolute inset-0 flex items-center pl-2 text-xs text-gray-700">
+                              {count.toLocaleString()} ({pct.toFixed(1)}%)
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-gray-200">
+                <p className="text-xs text-gray-500 mb-2">
+                  Database location: <code className="text-gray-700">~/.cca-audit/audit.db</code>
+                </p>
+                <button
+                  onClick={handlePurge}
+                  className="text-sm text-red-600 hover:text-red-700 font-medium"
+                >
+                  Delete All Audit Data...
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">Loading database stats…</p>
           )}
         </div>
       </div>
