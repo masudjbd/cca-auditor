@@ -83,7 +83,7 @@ pub fn insert_sample(pool: &DbPool, sample: &ResourceSample) -> auditor_core::er
     let conn = pool.get().map_err(|e| CcaError::Database(e.to_string()))?;
 
     conn.execute(
-        "INSERT INTO samples (pid, cpu_pct, rss_bytes, gpu_mem_bytes, ts)
+        "INSERT OR REPLACE INTO samples (pid, cpu_pct, rss_bytes, gpu_mem_bytes, ts)
          VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![
             sample.pid as i32,
