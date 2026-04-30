@@ -7,6 +7,7 @@ edition = "2021"
 auditor-core = { path = "../auditor-core" }
 auditor-db = { path = "../auditor-db" }
 auditor-report = { path = "../auditor-report" }
+auditor-guardrail = { path = "../auditor-guardrail" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }

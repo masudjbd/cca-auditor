@@ -111,10 +111,45 @@ pub async fn push_with_guardrail(
         ));
     }
 
-    // TODO: actual gitleaks scan + push
+    // Scan staged changes in current working dir
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let scan_result = auditor_guardrail::scan_staged(&cwd).await;
+
+    let findings = match scan_result {
+        Ok(f) => f,
+        Err(e) => {
+            tracing::warn!("guardrail scan failed: {}", e);
+            // If we can't scan (e.g., not a git repo), allow with warning
+            return Ok(GuardrailResult {
+                allowed: true,
+                findings: None,
+            });
+        }
+    };
+
+    if findings.is_empty() {
+        return Ok(GuardrailResult {
+            allowed: true,
+            findings: None,
+        });
+    }
+
+    let has_high = findings.iter().any(|f| f.severity == "high");
+
+    let mapped: Vec<GuardrailFinding> = findings
+        .into_iter()
+        .map(|f| GuardrailFinding {
+            rule_id: f.rule_id,
+            file: f.file,
+            line: f.line as i32,
+            severity: f.severity,
+            redacted_value: f.secret_value,
+        })
+        .collect();
+
     Ok(GuardrailResult {
-        allowed: true,
-        findings: None,
+        allowed: !has_high,
+        findings: Some(mapped),
     })
 }
 
