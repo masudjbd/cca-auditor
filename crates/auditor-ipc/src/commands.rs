@@ -58,19 +58,25 @@ pub fn dismiss_alert(
 }
 
 #[tauri::command]
-pub fn generate_report(
-    _state: tauri::State<'_, Arc<DbPool>>,
+pub async fn generate_report(
+    state: tauri::State<'_, Arc<DbPool>>,
     session_ids: Vec<String>,
     format: String,
 ) -> Result<String, String> {
-    // TODO: full implementation. For now, return JSON summary.
-    let report = serde_json::json!({
-        "session_ids": session_ids,
-        "format": format,
-        "generated_at": time::OffsetDateTime::now_utc().to_string(),
-        "note": "Report generation will be fully implemented in next iteration"
-    });
-    Ok(report.to_string())
+    let fmt = auditor_report::ReportFormat::from_str(&format)
+        .ok_or_else(|| format!("invalid format: {}", format))?;
+
+    let uuids: Result<Vec<Uuid>, _> = session_ids
+        .iter()
+        .map(|s| Uuid::parse_str(s))
+        .collect();
+    let uuids = uuids.map_err(|e| format!("invalid session_id: {}", e))?;
+
+    let bytes = auditor_report::generate(state.inner().clone(), uuids, fmt)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    String::from_utf8(bytes).map_err(|e| format!("utf8 error: {}", e))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
