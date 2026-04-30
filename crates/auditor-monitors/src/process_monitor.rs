@@ -10,12 +10,14 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use anyhow::Result;
 
+use crate::broadcast::{EventSender, MonitorEvent};
 use crate::state::ActiveSessions;
 
 pub async fn start_monitor(
     db: Arc<DbPool>,
     fingerprints: Vec<ToolFingerprint>,
     active_sessions: ActiveSessions,
+    events: EventSender,
     shutdown: CancellationToken,
 ) -> Result<()> {
     let mut system = System::new_all();
@@ -33,7 +35,6 @@ pub async fn start_monitor(
                 let mut current_pids = std::collections::HashSet::new();
                 let mut new_sessions: Vec<AuditSession> = Vec::new();
 
-                // Check for new tool processes
                 {
                     let sessions_read = active_sessions.read().await;
                     for (pid, process) in system.processes() {
@@ -53,7 +54,6 @@ pub async fn start_monitor(
                     }
                 }
 
-                // Insert new sessions and update shared state
                 if !new_sessions.is_empty() {
                     let mut sessions_write = active_sessions.write().await;
                     for session in new_sessions {
@@ -65,6 +65,10 @@ pub async fn start_monitor(
                                 session.tool_id.0,
                                 session.pid
                             );
+                            // Emit event before moving session
+                            let _ = events.send(MonitorEvent::SessionOpened {
+                                session: session.clone(),
+                            });
                             sessions_write.insert(session.pid, session);
                         }
                     }
@@ -86,6 +90,9 @@ pub async fn start_monitor(
                                 session.tool_id.0,
                                 pid
                             );
+                            let _ = events.send(MonitorEvent::SessionClosed {
+                                session_id: session.id.to_string(),
+                            });
                         }
                     }
                 }

@@ -7,6 +7,11 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use anyhow::Result;
 
+/// Notification sent to the supervisor when an alert is fired.
+/// Tuple: (alert_id, kind, severity, detail_json)
+pub type AlertNotification = (i64, String, String, String);
+pub type AlertSender = mpsc::UnboundedSender<AlertNotification>;
+
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct SensitivePathConfig {
     pub pattern: String,
@@ -30,6 +35,7 @@ pub async fn start_watcher(
     db: Arc<DbPool>,
     watch_paths: Vec<PathBuf>,
     sensitive_patterns: Vec<SensitivePathConfig>,
+    alert_sender: Option<AlertSender>,
     shutdown: CancellationToken,
 ) -> Result<()> {
     let (tx, mut rx) = mpsc::unbounded_channel();
@@ -64,7 +70,7 @@ pub async fn start_watcher(
                 break;
             }
             Some(event) = rx.recv() => {
-                handle_event(&db, &event, &sensitive_patterns).await;
+                handle_event(&db, &event, &sensitive_patterns, alert_sender.as_ref()).await;
             }
         }
     }
@@ -76,6 +82,7 @@ async fn handle_event(
     db: &Arc<DbPool>,
     event: &Event,
     sensitive_patterns: &[SensitivePathConfig],
+    alert_sender: Option<&AlertSender>,
 ) {
     // Only process write/create/modify events
     let is_write = matches!(
@@ -106,19 +113,28 @@ async fn handle_event(
                 matched.reason.replace('"', "\\\"")
             );
 
-            if let Err(e) = auditor_db::queries::alerts::insert_alert(
+            match auditor_db::queries::alerts::insert_alert(
                 db,
                 "sensitive_path_access",
                 &matched.severity,
                 &detail,
             ) {
-                tracing::warn!("failed to insert alert: {}", e);
-            } else {
-                tracing::warn!(
-                    "[ALERT] sensitive path accessed: {} (reason: {})",
-                    path_str,
-                    matched.reason
-                );
+                Err(e) => tracing::warn!("failed to insert alert: {}", e),
+                Ok(alert_id) => {
+                    tracing::warn!(
+                        "[ALERT] sensitive path accessed: {} (reason: {})",
+                        path_str,
+                        matched.reason
+                    );
+                    if let Some(sender) = alert_sender {
+                        let _ = sender.send((
+                            alert_id,
+                            "sensitive_path_access".to_string(),
+                            matched.severity.clone(),
+                            detail,
+                        ));
+                    }
+                }
             }
         }
     }

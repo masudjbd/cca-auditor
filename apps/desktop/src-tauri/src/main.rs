@@ -10,7 +10,7 @@ use auditor_ipc::commands::*;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager,
+    Emitter, Manager,
 };
 
 fn find_config_file(name: &str) -> Option<PathBuf> {
@@ -127,6 +127,49 @@ fn main() {
         .setup(move |app| {
             tracing::info!("Tauri app initialized");
 
+            // Create monitor event broadcast channel
+            let (event_tx, mut event_rx) = auditor_monitors::create_channel();
+
+            // Bridge: forward broadcast events to Tauri emit
+            let app_handle_for_bridge = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                while let Ok(event) = event_rx.recv().await {
+                    use auditor_monitors::MonitorEvent;
+                    let result = match &event {
+                        MonitorEvent::SessionOpened { session } => {
+                            app_handle_for_bridge.emit("session-opened", serde_json::json!({
+                                "session": session
+                            }))
+                        }
+                        MonitorEvent::SessionClosed { session_id } => {
+                            app_handle_for_bridge.emit("session-closed", serde_json::json!({
+                                "session_id": session_id
+                            }))
+                        }
+                        MonitorEvent::ResourceSample { sample } => {
+                            app_handle_for_bridge.emit("resource-sample", serde_json::json!({
+                                "sample": sample
+                            }))
+                        }
+                        MonitorEvent::AlertRaised { id, kind, severity, detail } => {
+                            app_handle_for_bridge.emit("alert-raised", serde_json::json!({
+                                "alert": {
+                                    "id": id,
+                                    "kind": kind,
+                                    "severity": severity,
+                                    "detail": detail,
+                                    "timestamp": time::OffsetDateTime::now_utc().unix_timestamp() * 1000,
+                                    "dismissed": false,
+                                }
+                            }))
+                        }
+                    };
+                    if let Err(e) = result {
+                        tracing::warn!("failed to emit Tauri event: {}", e);
+                    }
+                }
+            });
+
             // System tray menu
             let show_item = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
             let hide_item = MenuItem::with_id(app, "hide", "Hide Window", true, None::<&str>)?;
@@ -156,17 +199,19 @@ fn main() {
                 })
                 .build(app)?;
 
-            // Spawn monitor supervisor
+            // Spawn monitor supervisor with broadcast channel
             let db_clone = db_pool_for_monitors.clone();
             let fps_clone = fingerprints_for_monitors.clone();
             let watch_paths_clone = watch_paths.clone();
             let sensitive_clone = sensitive_patterns.clone();
+            let event_tx_clone = event_tx.clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = auditor_monitors::run_supervisor(
                     db_clone,
                     fps_clone,
                     watch_paths_clone,
                     sensitive_clone,
+                    event_tx_clone,
                 ).await {
                     tracing::error!("monitor supervisor failed: {}", e);
                 }
