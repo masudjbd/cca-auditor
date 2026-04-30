@@ -6,7 +6,8 @@ use crate::tool::{Confidence, ToolId};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEvent {
-    pub id: Uuid,
+    /// Auto-increment integer assigned by SQLite. 0 for unsaved events.
+    pub id: i64,
     pub session_id: Uuid,
     pub tool_id: ToolId,
     pub kind: EventKind,
@@ -33,7 +34,7 @@ impl AuditEvent {
         confidence: Confidence,
     ) -> Self {
         Self {
-            id: Uuid::new_v4(),
+            id: 0,
             session_id,
             tool_id,
             kind,

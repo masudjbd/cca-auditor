@@ -105,7 +105,7 @@ pub fn get_events(
                 .unwrap_or_else(|_| OffsetDateTime::now_utc());
 
             Ok(AuditEvent {
-                id: Uuid::parse_str(&_id.to_string()).unwrap_or_else(|_| Uuid::new_v4()),
+                id: _id,
                 session_id: Uuid::parse_str(&session_id_str).unwrap_or_else(|_| Uuid::new_v4()),
                 tool_id: auditor_core::tool::ToolId::new("unknown"),
                 kind,

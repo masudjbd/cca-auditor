@@ -154,7 +154,7 @@ async fn poll_sockets(
                     };
 
                     let event = AuditEvent {
-                        id: Uuid::new_v4(),
+                        id: 0,
                         session_id: *session_id,
                         tool_id: tool_id.clone(),
                         kind: EventKind::NetConnect {
