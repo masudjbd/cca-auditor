@@ -206,9 +206,11 @@ dependencies = [
  "auditor-db",
  "netstat2",
  "thiserror 1.0.69",
+ "time",
  "tokio",
  "tokio-util",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

@@ -12,3 +12,5 @@ tokio-util = "0.7"
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+time = { workspace = true }
+uuid = { workspace = true }

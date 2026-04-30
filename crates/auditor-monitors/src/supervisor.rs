@@ -90,6 +90,18 @@ pub async fn run_supervisor(
         ).await
     });
 
+    // Network monitor (5s polling, only AI tool PIDs)
+    let db_clone = db.clone();
+    let shutdown_clone = shutdown.clone();
+    let sessions_clone = active_sessions.clone();
+    tasks.spawn(async move {
+        auditor_net::start_monitor(
+            db_clone,
+            sessions_clone,
+            shutdown_clone,
+        ).await
+    });
+
     drop(alert_tx); // Allow forwarder to close when all monitors are done
 
     while let Some(result) = tasks.join_next().await {
