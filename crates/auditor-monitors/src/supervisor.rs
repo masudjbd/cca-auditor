@@ -102,6 +102,13 @@ pub async fn run_supervisor(
         ).await
     });
 
+    // Rollup task: 1Hz samples → 10s averages → 1min averages, then purge
+    let db_clone = db.clone();
+    let shutdown_clone = shutdown.clone();
+    tasks.spawn(async move {
+        run_rollup_task(db_clone, shutdown_clone).await
+    });
+
     drop(alert_tx); // Allow forwarder to close when all monitors are done
 
     while let Some(result) = tasks.join_next().await {
@@ -113,5 +120,52 @@ pub async fn run_supervisor(
     }
 
     tracing::info!("all monitors shut down");
+    Ok(())
+}
+
+async fn run_rollup_task(db: Arc<DbPool>, shutdown: CancellationToken) -> Result<()> {
+    use std::time::Duration;
+    use tokio::time::interval;
+
+    let mut ticker_10s = interval(Duration::from_secs(10));
+    let mut ticker_1m = interval(Duration::from_secs(60));
+    let mut ticker_purge = interval(Duration::from_secs(3600)); // hourly purge
+
+    loop {
+        tokio::select! {
+            _ = shutdown.cancelled() => {
+                tracing::info!("rollup task shutting down");
+                break;
+            }
+            _ = ticker_10s.tick() => {
+                match auditor_db::queries::samples::rollup_samples_10s(&db) {
+                    Ok(n) if n > 0 => tracing::debug!("rolled up {} 10s samples", n),
+                    Err(e) => tracing::warn!("10s rollup failed: {}", e),
+                    _ => {}
+                }
+            }
+            _ = ticker_1m.tick() => {
+                match auditor_db::queries::samples::rollup_samples_1m(&db) {
+                    Ok(n) if n > 0 => tracing::debug!("rolled up {} 1m samples", n),
+                    Err(e) => tracing::warn!("1m rollup failed: {}", e),
+                    _ => {}
+                }
+            }
+            _ = ticker_purge.tick() => {
+                // Retention: 24h raw, 30d 10s, indefinite 1m
+                match auditor_db::queries::samples::purge_old_samples(&db, 86400) {
+                    Ok(n) if n > 0 => tracing::info!("purged {} old raw samples", n),
+                    Err(e) => tracing::warn!("purge failed: {}", e),
+                    _ => {}
+                }
+                match auditor_db::queries::samples::purge_old_rollups_10s(&db, 86400 * 30) {
+                    Ok(n) if n > 0 => tracing::info!("purged {} old 10s rollups", n),
+                    Err(e) => tracing::warn!("10s purge failed: {}", e),
+                    _ => {}
+                }
+            }
+        }
+    }
+
     Ok(())
 }

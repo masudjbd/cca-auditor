@@ -33,8 +33,11 @@ pub fn get_samples(
     from: i64,
     to: i64,
 ) -> Result<Vec<ResourceSample>, String> {
-    auditor_db::queries::samples::get_samples(&state, pid, from, to)
-        .map_err(|e| e.to_string())
+    let raw = auditor_db::queries::samples::get_samples(&state, pid, from, to)
+        .map_err(|e| e.to_string())?;
+
+    // Downsample to ~200 points for chart rendering performance
+    Ok(auditor_db::downsample::lttb_downsample(raw, 200))
 }
 
 pub use auditor_db::queries::alerts::Alert;
