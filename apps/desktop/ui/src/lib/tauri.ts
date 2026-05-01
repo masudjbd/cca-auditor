@@ -82,14 +82,26 @@ export interface GuardrailResult {
 
 export async function pushWithGuardrail(
   remote: string,
-  refspec: string
+  refspec: string,
+  repoPath?: string
 ): Promise<GuardrailResult> {
-  try {
-    return await invoke<GuardrailResult>('push_with_guardrail', { remote, refspec })
-  } catch (error) {
-    console.error('Failed to push with guardrail:', error)
-    throw error
-  }
+  return await invoke<GuardrailResult>('push_with_guardrail', {
+    remote,
+    refspec,
+    repoPath: repoPath ?? null,
+  })
+}
+
+export async function executePush(
+  remote: string,
+  refspec: string,
+  repoPath?: string
+): Promise<void> {
+  await invoke('execute_push', {
+    remote,
+    refspec,
+    repoPath: repoPath ?? null,
+  })
 }
 
 export interface AppSettings {
