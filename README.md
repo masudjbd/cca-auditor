@@ -4,6 +4,28 @@ A cross-platform desktop system-tray app that provides a complete audit trail fo
 
 **Status:** Early development (v0.1.0). Expect frequent changes and bugs.
 
+## Screenshots
+
+### Dashboard — Per-tool tiles with live CPU/Memory sparklines
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Live Audit Stream — Real-time events with tool/kind filters
+
+![Live Stream](docs/screenshots/live-stream.png)
+
+### Reports — Generate HTML, Markdown, JSON exports with native save dialog
+
+![Reports](docs/screenshots/reports.png)
+
+### Settings — Database stats, watch paths, sensitive-path patterns
+
+![Settings](docs/screenshots/settings.png)
+
+### About
+
+![About](docs/screenshots/about.png)
+
 ## Why CCAudit?
 
 AI coding tools operate with broad filesystem and network access. You may not know:
