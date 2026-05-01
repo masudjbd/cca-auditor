@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useAuditStore } from '../store/auditStore'
 import { useAuditStream } from '../hooks/useAuditStream'
+import { getLiveSessions } from '../lib/tauri'
 
 type SortField = 'tool_id' | 'started_at' | 'duration'
 type SortOrder = 'asc' | 'desc'
@@ -10,7 +11,22 @@ export default function Sessions() {
   const [filterTool, setFilterTool] = useState('')
   const [sortField, setSortField] = useState<SortField>('started_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [refreshing, setRefreshing] = useState(false)
   useAuditStream()
+
+  const refresh = async () => {
+    setRefreshing(true)
+    try {
+      const live = await getLiveSessions()
+      useAuditStore.setState({ sessions: live })
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
+    refresh()
+  }, [])
 
   const filteredAndSorted = useMemo(() => {
     let result = sessions
@@ -73,8 +89,20 @@ export default function Sessions() {
 
   return (
     <div className="p-8">
-      <h2 className="text-3xl font-bold text-gray-900">Sessions</h2>
-      <p className="text-gray-600 mt-2">Historical audit sessions by tool</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">Sessions</h2>
+          <p className="text-gray-600 mt-2">Historical audit sessions by tool</p>
+        </div>
+        <button
+          onClick={refresh}
+          disabled={refreshing}
+          className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50"
+        >
+          <span className={refreshing ? 'animate-spin inline-block' : ''}>↻</span>
+          {refreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
 
       {sessions.length === 0 ? (
         <div className="mt-8 bg-white rounded-lg shadow p-8 text-center">

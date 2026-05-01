@@ -297,32 +297,65 @@ fn main() {
                 }
             });
 
-            // System tray menu
+            // System tray menu with quick actions
+            use tauri::menu::PredefinedMenuItem;
             let show_item = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
+            let dashboard_item = MenuItem::with_id(app, "dashboard", "Open Dashboard", true, None::<&str>)?;
+            let live_item = MenuItem::with_id(app, "live", "Open Live Stream", true, None::<&str>)?;
+            let alerts_item = MenuItem::with_id(app, "alerts", "Open Alerts", true, None::<&str>)?;
+            let reports_item = MenuItem::with_id(app, "reports", "Generate Report…", true, None::<&str>)?;
+            let sep1 = PredefinedMenuItem::separator(app)?;
             let hide_item = MenuItem::with_id(app, "hide", "Hide Window", true, None::<&str>)?;
+            let about_item = MenuItem::with_id(app, "about", "About CCAudit", true, None::<&str>)?;
+            let sep2 = PredefinedMenuItem::separator(app)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit CCAudit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_item, &hide_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[
+                &show_item,
+                &sep1,
+                &dashboard_item,
+                &live_item,
+                &alerts_item,
+                &reports_item,
+                &sep2,
+                &hide_item,
+                &about_item,
+                &quit_item,
+            ])?;
 
             let tray = TrayIconBuilder::with_id("main-tray")
                 .menu(&menu)
                 .tooltip("CCAudit — AI Tool Auditor")
                 .icon(app.default_window_icon().unwrap().clone())
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => {
+                .on_menu_event(|app, event| {
+                    let id = event.id.as_ref();
+                    let route_for = |path: &str| {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
+                            // Emit a navigation event to the frontend
+                            let _ = window.emit("navigate", path);
                         }
-                    }
-                    "hide" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.hide();
+                    };
+                    match id {
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
                         }
+                        "hide" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.hide();
+                            }
+                        }
+                        "dashboard" => route_for("/"),
+                        "live" => route_for("/live"),
+                        "alerts" => route_for("/alerts"),
+                        "reports" => route_for("/reports"),
+                        "about" => route_for("/about"),
+                        "quit" => app.exit(0),
+                        _ => {}
                     }
-                    "quit" => {
-                        app.exit(0);
-                    }
-                    _ => {}
                 })
                 .build(app)?;
 

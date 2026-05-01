@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuditStore } from '../store/auditStore'
 import { useAuditStream } from '../hooks/useAuditStream'
 import { getAlerts, dismissAlert } from '../lib/tauri'
@@ -6,35 +6,70 @@ import { getAlerts, dismissAlert } from '../lib/tauri'
 export default function Alerts() {
   const { alerts } = useAuditStore()
   const dismissAlertLocal = useAuditStore((state) => state.dismissAlert)
+  const [refreshing, setRefreshing] = useState(false)
+  const [showDismissed, setShowDismissed] = useState(false)
   useAuditStream()
 
-  useEffect(() => {
-    const loadAlerts = async () => {
-      const initialAlerts = await getAlerts(false)
+  const refresh = async () => {
+    setRefreshing(true)
+    try {
+      const initialAlerts = await getAlerts(showDismissed)
       useAuditStore.setState({ alerts: initialAlerts })
+    } finally {
+      setRefreshing(false)
     }
-    loadAlerts()
-  }, [])
+  }
+
+  useEffect(() => {
+    refresh()
+  }, [showDismissed])
 
   const handleDismiss = async (alertId: number) => {
     await dismissAlert(alertId)
     dismissAlertLocal(alertId)
   }
 
-  const undismissedAlerts = alerts.filter((a) => !a.dismissed)
+  const visibleAlerts = showDismissed ? alerts : alerts.filter((a) => !a.dismissed)
 
   return (
     <div className="p-8">
-      <h2 className="text-3xl font-bold text-gray-900">Alerts</h2>
-      <p className="text-gray-600 mt-2">Sensitive path access, security findings</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">Alerts</h2>
+          <p className="text-gray-600 mt-2">Sensitive path access, security findings</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showDismissed}
+              onChange={(e) => setShowDismissed(e.target.checked)}
+              className="w-4 h-4 rounded"
+            />
+            Show dismissed
+          </label>
+          <button
+            onClick={refresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50"
+          >
+            <span className={refreshing ? 'animate-spin inline-block' : ''}>↻</span>
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+        </div>
+      </div>
 
-      {undismissedAlerts.length === 0 ? (
-        <div className="mt-8 bg-white rounded-lg shadow p-8 text-center">
-          <p className="text-gray-500">No active alerts</p>
+      {visibleAlerts.length === 0 ? (
+        <div className="mt-8 bg-white rounded-lg shadow p-12 text-center">
+          <span className="text-4xl">✓</span>
+          <p className="text-gray-500 mt-3 text-lg">All clear — no active alerts</p>
+          <p className="text-gray-400 text-sm mt-2">
+            Alerts fire when AI tools access sensitive paths configured in Settings
+          </p>
         </div>
       ) : (
         <div className="mt-8 space-y-4">
-          {undismissedAlerts.map((alert) => (
+          {visibleAlerts.map((alert) => (
             <div
               key={alert.id}
               className={`bg-white rounded-lg shadow p-6 border-l-4 ${

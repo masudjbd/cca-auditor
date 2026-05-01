@@ -1,4 +1,6 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
+import { listen } from '@tauri-apps/api/event'
 import { useAuditStream } from './hooks/useAuditStream'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
@@ -12,7 +14,17 @@ import Settings from './pages/Settings'
 import About from './pages/About'
 
 function AppContent() {
+  const navigate = useNavigate()
   useAuditStream()
+
+  useEffect(() => {
+    const unlisten = listen<string>('navigate', (event) => {
+      navigate(event.payload)
+    })
+    return () => {
+      unlisten.then((fn) => fn())
+    }
+  }, [navigate])
 
   return (
     <Routes>
