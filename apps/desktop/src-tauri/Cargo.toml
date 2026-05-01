@@ -16,6 +16,7 @@ auditor-ipc = { path = "../../../crates/auditor-ipc" }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-notification = "2"
 dirs = "5"
 time = { workspace = true }
 serde = { workspace = true }

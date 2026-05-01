@@ -212,6 +212,7 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(db_pool)
         .manage(watch_paths.clone())
         .manage(fs_reload_signal.clone())
@@ -232,6 +233,7 @@ fn main() {
             open_path_in_finder,
             get_user_sensitive_paths,
             save_user_sensitive_paths,
+            execute_push,
         ])
         .setup(move |app| {
             tracing::info!("Tauri app initialized");
@@ -261,6 +263,22 @@ fn main() {
                             }))
                         }
                         MonitorEvent::AlertRaised { id, kind, severity, detail } => {
+                            // Send OS notification for high-severity alerts
+                            if severity == "high" {
+                                use tauri_plugin_notification::NotificationExt;
+                                let body = if detail.len() > 100 {
+                                    format!("{}…", &detail[..100])
+                                } else {
+                                    detail.clone()
+                                };
+                                let _ = app_handle_for_bridge
+                                    .notification()
+                                    .builder()
+                                    .title(format!("⚠️ CCAudit: {}", kind))
+                                    .body(&body)
+                                    .show();
+                            }
+
                             app_handle_for_bridge.emit("alert-raised", serde_json::json!({
                                 "alert": {
                                     "id": id,

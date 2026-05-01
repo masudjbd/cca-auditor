@@ -184,63 +184,78 @@ pub struct GuardrailResult {
     pub findings: Option<Vec<GuardrailFinding>>,
 }
 
+/// Phase 1: scan only. Returns findings without pushing.
+/// Frontend calls this first, shows results, then calls execute_push if user approves.
 #[tauri::command]
 pub async fn push_with_guardrail(
+    repo_path: Option<String>,
     remote: String,
     _refspec: String,
 ) -> Result<GuardrailResult, String> {
-    // Org allowlist check
-    let allowed_orgs = ["masudjbd", "fahiminfo"];
-    let url_lower = remote.to_lowercase();
-    let in_allowlist = allowed_orgs.iter().any(|org| url_lower.contains(org));
+    let cwd = match repo_path {
+        Some(p) => std::path::PathBuf::from(p),
+        None => std::env::current_dir().map_err(|e| e.to_string())?,
+    };
 
-    if !in_allowlist {
+    // Resolve remote URL via git2 to get the actual URL (not just the alias)
+    let remote_url = auditor_guardrail::push_guard::get_remote_url(&cwd, &remote)
+        .unwrap_or_else(|_| remote.clone());
+
+    if !auditor_guardrail::push_guard::check_org_allowlist(&remote_url) {
         return Err(format!(
             "Remote '{}' not in allowlist. Only masudjbd/* and fahiminfo/* permitted.",
-            remote
+            remote_url
         ));
     }
 
-    // Scan staged changes in current working dir
-    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-    let scan_result = auditor_guardrail::scan_staged(&cwd).await;
-
-    let findings = match scan_result {
-        Ok(f) => f,
-        Err(e) => {
-            tracing::warn!("guardrail scan failed: {}", e);
-            // If we can't scan (e.g., not a git repo), allow with warning
-            return Ok(GuardrailResult {
-                allowed: true,
-                findings: None,
-            });
-        }
-    };
-
-    if findings.is_empty() {
-        return Ok(GuardrailResult {
-            allowed: true,
-            findings: None,
-        });
-    }
-
-    let has_high = findings.iter().any(|f| f.severity == "high");
+    // Scan staged changes
+    let findings = auditor_guardrail::scan_staged(&cwd)
+        .await
+        .map_err(|e| format!("scan failed: {}. Run from a git repo.", e))?;
 
     let mapped: Vec<GuardrailFinding> = findings
-        .into_iter()
+        .iter()
         .map(|f| GuardrailFinding {
-            rule_id: f.rule_id,
-            file: f.file,
+            rule_id: f.rule_id.clone(),
+            file: f.file.clone(),
             line: f.line as i32,
-            severity: f.severity,
-            redacted_value: f.secret_value,
+            severity: f.severity.clone(),
+            redacted_value: f.secret_value.clone(),
         })
         .collect();
 
+    let has_high = findings.iter().any(|f| f.severity == "high");
+
     Ok(GuardrailResult {
         allowed: !has_high,
-        findings: Some(mapped),
+        findings: if mapped.is_empty() { None } else { Some(mapped) },
     })
+}
+
+/// Phase 2: actually execute push. Called after user approves (or if no findings).
+#[tauri::command]
+pub async fn execute_push(
+    repo_path: Option<String>,
+    remote: String,
+    refspec: String,
+) -> Result<(), String> {
+    let cwd = match repo_path {
+        Some(p) => std::path::PathBuf::from(p),
+        None => std::env::current_dir().map_err(|e| e.to_string())?,
+    };
+
+    // Re-validate allowlist (defense in depth)
+    let remote_url = auditor_guardrail::push_guard::get_remote_url(&cwd, &remote)
+        .map_err(|e| e.to_string())?;
+    if !auditor_guardrail::push_guard::check_org_allowlist(&remote_url) {
+        return Err(format!("Remote '{}' not in allowlist.", remote_url));
+    }
+
+    auditor_guardrail::push_guard::execute_push(&cwd, &remote, &refspec)
+        .map_err(|e| format!("push failed: {}", e))?;
+
+    tracing::info!("push succeeded: {} {}", remote, refspec);
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
